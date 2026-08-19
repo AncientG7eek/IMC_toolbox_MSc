@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "imc-curator"
+version = "0.1.0"
+description = "Tools for curating imaging mass cytometry datasets"
+requires-python = ">=3.10"
+
+dependencies = [
+    "typer>=0.16",
+]
+
+
+[project.scripts]
+imc-curator = "imc_curator.cli:app"
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/imc_curator"]
