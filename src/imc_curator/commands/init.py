@@ -1,27 +1,81 @@
 from pathlib import Path
-
 import typer
+from urllib.parse import urlparse
+
 
 from imc_curator.config import get_projects_dir
-from imc_curator.download import download
+from imc_curator.discovery.download import download, import_local
 from imc_curator.project import create_project
 
 
+def is_url(value: str) -> bool:
+    parsed = urlparse(value)
+
+    return parsed.scheme in {
+        "http",
+        "https",
+    }
+
+
 def init(
-    url: str = typer.Option(..., help="URL of the dataset archive"),
-    name: str = typer.Option(..., help="Name of the dataset"),
+    source: str = typer.Option(
+        ...,
+        "--source",
+        "-s",
+        help="Dataset URL, local archive, or local directory.",
+    ),
+    name: str = typer.Option(
+        ...,
+        "--name",
+        "-n",
+        help="Name of the dataset project.",
+    ),
 ):
-    """Download and initialize a new IMC dataset project."""
+    """Initialize a new IMC dataset project."""
 
     projects_dir = get_projects_dir()
 
     project_dir = create_project(
         name=name,
-        path=projects_dir,
+        projects_dir=projects_dir,
     )
 
-    archive = project_dir / "data" / "raw" / "dataset.zip"
+    source_dir = (
+        project_dir
+        / "data"
+        / "raw"
+        / "source"
+    )
 
-    download(url, archive)
+    local_source = Path(source).expanduser()
 
-    typer.echo(f"Project created: {project_dir}")
+    if is_url(source):
+
+        typer.echo(f"Downloading dataset: {source}")
+
+        download(
+            url=source,
+            destination=source_dir,
+        )
+
+    elif local_source.exists():
+
+        typer.echo(f"Importing local dataset: {local_source}")
+
+        import_local(
+            source=local_source,
+            destination=source_dir,
+        )
+
+    else:
+
+        typer.echo(
+            f"{source} is neither an URL nor an existing local path\
+                Please provide either of these.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    typer.echo(
+        f"Project initialized: {project_dir}"
+    )

@@ -1,0 +1,21 @@
+[archives]
+extensions = [".zip"]
+
+[categories.images]
+extensions = [".tif", ".tiff"]
+destination = "data/processed/images"
+
+[categories.marker_metadata]
+extensions = [".csv", ".tsv", ".xlsx"]
+keywords = ["marker", "channel", "antibody"]
+destination = "metadata/markers"
+
+[categories.clinical_data]
+extensions = [".csv", ".tsv", ".xlsx"]
+keywords = ["clinical", "patient", "diagnosis"]
+destination = "metadata/clinical"
+
+[categories.sample_metadata]
+extensions = [".csv", ".tsv", ".xlsx"]
+keywords = ["sample", "specimen", "metadata"]
+destination = "metadata/samples"

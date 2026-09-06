@@ -3,10 +3,10 @@ from pathlib import Path
 
 def create_project(
     name: str,
-    path: Path | str = ".",
+    projects_dir: Path | str = ".",
 ) -> Path:
 
-    path = Path(path)
+    path = Path(projects_dir)
     project_dir = path / name
 
     project_dir.mkdir(parents=True, exist_ok=False)
