@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 from imc_curator.config import get_projects_dir
 from imc_curator.discovery.download import download, import_local
-from imc_curator.project import create_project
+from imc_curator.discovery.project import init_project
 
 
 def is_url(value: str) -> bool:
@@ -35,7 +35,7 @@ def init(
 
     projects_dir = get_projects_dir()
 
-    project_dir = create_project(
+    project_dir = init_project(
         name=name,
         projects_dir=projects_dir,
     )

@@ -3,13 +3,13 @@ from pathlib import Path
 import typer
 
 from imc_curator.config import get_projects_dir
-from imc_curator.curate.load_report import load_manifest
-from imc_curator.curate.populate import (
+from imc_curator.curation.load_report import load_manifest
+from imc_curator.curation.populate import (
     materialize_category
 )
 
 
-def curate(
+def populate(
     name: str = typer.Argument(...),
 ):
     projects_dir = get_projects_dir()
@@ -18,7 +18,7 @@ def curate(
     manifest = load_manifest(project_dir)
     inputs = manifest.get("inputs", {})
 
-    raw_dir = project_dir / "data" / "raw"
+    raw_dir = project_dir / "data" / "raw" / "source"
 
     for category, paths in inputs.items():
         if not paths:
@@ -32,5 +32,5 @@ def curate(
         )
 
     typer.echo(
-        f"Successfully curated {name}"
+        f"Successfully populated {name} project"
     )

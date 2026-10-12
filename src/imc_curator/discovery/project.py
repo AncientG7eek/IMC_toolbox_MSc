@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-def create_project(
+def init_project(
     name: str,
     projects_dir: Path | str = ".",
 ) -> Path:
