@@ -1,7 +1,8 @@
 from pathlib import Path
 import shutil
-from imc_curator.discovery.classifier import SEARCH_CONFIG
+from imc_curator.config import load_search_config
 
+SEARCH_CONFIG = load_search_config()
 
 def materialize_file(
     source: Path,

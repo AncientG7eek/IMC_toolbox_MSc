@@ -3,8 +3,8 @@ from pathlib import Path
 import typer
 
 from imc_curator.config import get_projects_dir
-from imc_curator.curation.load_report import load_manifest
-from imc_curator.curation.populate import (
+from imc_curator.commands_code.curation.load_report import load_manifest
+from imc_curator.commands_code.curation.populate import (
     materialize_category
 )
 

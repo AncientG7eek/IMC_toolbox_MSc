@@ -4,7 +4,7 @@ from pathlib import Path
 def write_manifest(
     project_dir: Path,
     project_name: str,
-    suggestions: dict[str, list[str]],
+    suggestions: dict[str, list[dict]],
 ) -> Path:
     """Write a human-editable manifest.toml."""
 

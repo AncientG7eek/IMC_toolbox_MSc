@@ -3,19 +3,28 @@ extensions = [".zip"]
 
 [categories.images]
 extensions = [".tif", ".tiff"]
+strong_positive_keywords = ["full", "stack"]
+weak_positive_keywords = ["ROI"]
+negative_keywords = ["mask", "exclucion"]
 destination = "data/processed/images"
 
 [categories.marker_metadata]
-extensions = [".csv", ".tsv", ".xlsx"]
-keywords = ["marker", "channel", "antibody"]
+extensions = [".csv", ".tsv", ".xls", ".xlsx"]
+strong_positive_keywords = ["marker", "panel", "channel"]
+weak_positive_keywords = []
+negative_keywords = ["clinical", "patient", "donor"]
 destination = "metadata/markers"
 
 [categories.clinical_data]
-extensions = [".csv", ".tsv", ".xlsx"]
-keywords = ["clinical", "patient", "diagnosis"]
+extensions = [".csv", ".docx", ".pdf", ".xls", ".xlsx"]
+strong_positive_keywords = ["clinical", "patient", "donor"]
+weak_positive_keywords = ["cli"]
+negative_keywords = ["marker", "channel", "antibody"]
 destination = "metadata/clinical"
 
-[categories.sample_metadata]
-extensions = [".csv", ".tsv", ".xlsx"]
-keywords = ["sample", "specimen", "metadata"]
-destination = "metadata/samples"
+[categories.raw_imc_data]
+extensions = [".mcd", ".txt"]
+strong_positive_keywords = ["TMA"]
+weak_positive_keywords = []
+negative_keywords = []
+destination = "metadata/raw_imc_data"

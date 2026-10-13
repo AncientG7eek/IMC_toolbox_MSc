@@ -4,8 +4,8 @@ from urllib.parse import urlparse
 
 
 from imc_curator.config import get_projects_dir
-from imc_curator.discovery.download import download, import_local
-from imc_curator.discovery.project import init_project
+from imc_curator.commands_code.discovery.download import download, import_local
+from imc_curator.commands_code.discovery.project import init_project
 
 
 def is_url(value: str) -> bool:
