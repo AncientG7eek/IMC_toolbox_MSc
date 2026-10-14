@@ -11,8 +11,13 @@ from rich.console import Console
 from rich.text import Text
 from rich.tree import Tree
 
-from imc_curator.config import load_search_config
+from imc_curator.config import (
+                                load_config, 
+                                load_search_config,
+                                get_manifests_dir,
+)
 
+CONFIG = load_config()
 
 CATEGORY_PALETTE = [
     "bright_cyan",
@@ -162,7 +167,8 @@ def save_manifest_tree(
         category_styles=category_styles,
     )
 
-    output_dir = project_dir / "curation_process_manifests"
+    manifests_dir = get_manifests_dir(project_dir=project_dir, config=CONFIG)
+    output_dir = project_dir / manifests_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / output_name

@@ -1,1 +1,7 @@
-projects_dir = "data/cohorts/"
+projects_dir = "data/cohorts"
+
+[curation]
+curation_manifests_subdir = "curation_manifests"
+
+[logging]
+logs_subdir = "logs"

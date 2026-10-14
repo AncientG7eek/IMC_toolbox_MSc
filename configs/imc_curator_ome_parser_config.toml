@@ -1,0 +1,20 @@
+[[rules]]
+id = "ome_parentheses_v1"
+description = "Marker followed by metal/isotope in parentheses"
+source = "raw_name"
+pattern = '^(?P<biological_marker>.*?)\s*\((?P<metal_ion>[^()]+)\)\s*$'
+enabled = true
+
+[[rules]]
+id = "imc_vendor_suffix_v1"
+description = "Marker followed by numeric code, isotope, and Di suffix"
+source = "raw_name"
+pattern = '^(?P<biological_marker>.+?)_\d+(?P<metal_ion>[A-Z][a-z]?\d{2,3})Di$'
+enabled = true
+
+[[rules]]
+id = "ome_isotope_marker_v1"
+description = "Isotope prefix followed by marker name"
+source = "raw_name"
+pattern = '^(?P<metal_ion>\d{2,3}[A-Z][a-z]?)_(?P<biological_marker>.+)$'
+enabled = true

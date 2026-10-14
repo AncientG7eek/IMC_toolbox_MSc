@@ -77,3 +77,9 @@ def get_archive_extensions() -> set[str]:
         extension.lower()
         for extension in extensions
     }
+
+def get_manifests_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["curation"]["curation_manifests_subdir"]
+
+def get_logs_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["logging"]["logs_subdir"]

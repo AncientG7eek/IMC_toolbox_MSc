@@ -1,7 +1,9 @@
 
 import logging
 from pathlib import Path
+from imc_curator.config import load_config, get_logs_dir
 
+CONFIG = load_config()
 
 def get_action_logger(
     project_dir: Path,
@@ -11,7 +13,8 @@ def get_action_logger(
 ) -> logging.Logger:
     """Create a logger that writes to this project's action log."""
 
-    log_dir = project_dir / "logs"
+    logs_subdir = get_logs_dir(project_dir=project_dir, config=CONFIG)
+    log_dir = project_dir / logs_subdir
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logger = logging.getLogger(f"imc_curator.{action}")

@@ -8,6 +8,7 @@ from imc_curator.commands_code.discovery.scanner import discover
 from imc_curator.file_tree_plotting import save_manifest_tree
 
 
+
 def inspect(
     name: str = typer.Argument(
         ...,

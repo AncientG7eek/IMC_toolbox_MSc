@@ -1,5 +1,10 @@
 from pathlib import Path
 
+from imc_curator.config import load_config, get_manifests_dir
+                                
+
+CONFIG = load_config()
+
 
 def write_manifest(
     project_dir: Path,
@@ -8,7 +13,8 @@ def write_manifest(
 ) -> Path:
     """Write a human-editable manifest.toml."""
 
-    manifest_path = project_dir / "manifest.toml"
+    manifests_dir = get_manifests_dir(project_dir=project_dir, config=CONFIG)
+    manifest_path = manifests_dir / "manifest.toml"
 
     lines = [
         "# IMC Curator project manifest",
@@ -24,10 +30,9 @@ def write_manifest(
     ]
 
     categories = {
-        "images": "Image data",
-        "marker_metadata": "Marker/channel metadata",
-        "clinical_data": "Clinical information",
-        "sample_metadata": "Sample metadata",
+        category : ' '.join(word.capitalize() for word in category.split('_'))
+        for category in suggestions.keys()
+        if category != "unclassified"
     }
 
     for category, comment in categories.items():
@@ -53,6 +58,7 @@ def write_manifest(
     lines.append("]")
     lines.append("")
 
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
         "\n".join(lines),
         encoding="utf-8",

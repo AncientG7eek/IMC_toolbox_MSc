@@ -82,7 +82,7 @@ def classify_file(
     if len(best_category) >= 2:
         matches.append(
                 CategoryMatch(
-                    category=f"{' or '.join(best_category)}",
+                    category=f"{'_or_'.join(best_category)}",
                     score=highest_score + 1, 
                     evidence=[f"{' and '.join(best_category)} got the same score"],
                 )
