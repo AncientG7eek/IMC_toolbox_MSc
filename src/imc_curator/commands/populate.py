@@ -31,9 +31,7 @@ def populate(
             continue
 
         if category not in SEARCH_CATEGORIES:
-            raise typer.BadParameter(
-                f"Unknown input category in manifest: {category!r}"
-            )
+            continue
 
         if not isinstance(entries, list):
             raise typer.BadParameter(

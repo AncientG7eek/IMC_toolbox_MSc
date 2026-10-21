@@ -108,6 +108,7 @@ def discover(
             "archive_path": file["archive_path"],
             "member_path": file["member_path"],
             "size_bytes": file["size_bytes"],
+            "suggested_category": category,
             "score": classification_result.score,
             "evidence": classification_result.evidence,            
         }

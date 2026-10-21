@@ -3,6 +3,16 @@ from shutil import copytree
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
 from zipfile import ZipFile
+from shutil import copy2, copytree
+from rich.progress import (
+    Progress,
+    BarColumn,
+    DownloadColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
 from imc_curator.config import get_archive_extensions
 
@@ -18,36 +28,16 @@ def is_url(source: str) -> bool:
     return parsed.scheme in {"http", "https"}
 
 
+
 def download(
     url: str,
     destination: Path,
 ) -> Path:
-    """
-    Download a dataset archive to a temporary location.
+    """Download an archive with a terminal progress bar."""
 
-    Parameters
-    ----------
-    url:
-        HTTP or HTTPS URL of the dataset archive.
+    destination.mkdir(parents=True, exist_ok=True)
 
-    destination:
-        Directory in which to save the downloaded archive.
-
-    Returns
-    -------
-    Path
-        Path to the downloaded archive.
-    """
-
-    destination.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    filename = Path(
-        urlparse(url).path
-    ).name
-
+    filename = Path(urlparse(url).path).name
     if not filename:
         raise ValueError(
             f"Could not determine filename from URL: {url}"
@@ -58,12 +48,36 @@ def download(
     print(f"Downloading {url}")
     print(f"Saving to {archive_path}")
 
-    urlretrieve(
-        url,
-        archive_path,
-    )
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+    ) as progress:
+        task = progress.add_task(
+            "Downloading",
+            total=None,
+        )
+
+        def report_progress(block_count, block_size, total_size):
+            downloaded = block_count * block_size
+
+            progress.update(
+                task,
+                completed=downloaded,
+                total=total_size if total_size > 0 else None,
+            )
+
+        urlretrieve(
+            url,
+            archive_path,
+            reporthook=report_progress,
+        )
 
     return archive_path
+
 
 
 def extract_zip(

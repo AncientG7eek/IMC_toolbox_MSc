@@ -1,0 +1,112 @@
+Standardized Feature,Standardized Value,Cohort,Original Feature,Original Value
+gender,male,ddd,Sex,M
+Sex,F,ddd,Sex,F
+Age,30,xu-melanoma,Age,30
+Age,31,xu-melanoma,Age,31
+Age,37,xu-melanoma,Age,37
+Age,38,xu-melanoma,Age,38
+Age,41,xu-melanoma,Age,41
+Age,45,xu-melanoma,Age,45
+Age,46,xu-melanoma,Age,46
+Age,49,xu-melanoma,Age,49
+Age,51,xu-melanoma,Age,51
+Age,53,xu-melanoma,Age,53
+Age,55,xu-melanoma,Age,55
+Age,56,xu-melanoma,Age,56
+Age,57,xu-melanoma,Age,57
+Age,58,xu-melanoma,Age,58
+Age,59,xu-melanoma,Age,59
+Age,60,xu-melanoma,Age,60
+Age,61,xu-melanoma,Age,61
+Age,63,xu-melanoma,Age,63
+Age,64,xu-melanoma,Age,64
+Age,67,xu-melanoma,Age,67
+Age,68,xu-melanoma,Age,68
+Age,72,xu-melanoma,Age,72
+gender,male,xu-melanoma,Sex,M
+isDeceased,0,xu-melanoma,isDeceased,0
+isDeceased,1,xu-melanoma,isDeceased,1
+isProgressed,0,xu-melanoma,isProgressed,0
+isProgressed,1,xu-melanoma,isProgressed,1
+M stage,M0,xu-melanoma,M stage,M0
+M stage,M1,xu-melanoma,M stage,M1
+M stage,M1a,xu-melanoma,M stage,M1a
+M stage,M1b,xu-melanoma,M stage,M1b
+M stage,M1C,xu-melanoma,M stage,M1C
+N stage,N0,xu-melanoma,N stage,N0
+N stage,N1,xu-melanoma,N stage,N1
+N stage,N1b,xu-melanoma,N stage,N1b
+N stage,N2b,xu-melanoma,N stage,N2b
+N stage,N3,xu-melanoma,N stage,N3
+N stage,N3a,xu-melanoma,N stage,N3a
+N stage,N3b,xu-melanoma,N stage,N3b
+N stage,N3C,xu-melanoma,N stage,N3C
+N stage,NX,xu-melanoma,N stage,NX
+OS (months),10.76666667,xu-melanoma,OS (months),10.76666667
+OS (months),15.6,xu-melanoma,OS (months),15.6
+OS (months),21.76666667,xu-melanoma,OS (months),21.76666667
+OS (months),31.23333333,xu-melanoma,OS (months),31.23333333
+OS (months),31.43333333,xu-melanoma,OS (months),31.43333333
+OS (months),31.76666667,xu-melanoma,OS (months),31.76666667
+OS (months),31.93333333,xu-melanoma,OS (months),31.93333333
+OS (months),32.0,xu-melanoma,OS (months),32.0
+OS (months),32.16666667,xu-melanoma,OS (months),32.16666667
+OS (months),33.66666667,xu-melanoma,OS (months),33.66666667
+OS (months),34.23333333,xu-melanoma,OS (months),34.23333333
+OS (months),39.26666667,xu-melanoma,OS (months),39.26666667
+OS (months),43.4,xu-melanoma,OS (months),43.4
+OS (months),44.76666667,xu-melanoma,OS (months),44.76666667
+OS (months),45.03333333,xu-melanoma,OS (months),45.03333333
+OS (months),45.36666667,xu-melanoma,OS (months),45.36666667
+OS (months),49.46666667,xu-melanoma,OS (months),49.46666667
+OS (months),49.96666667,xu-melanoma,OS (months),49.96666667
+OS (months),5.766666667,xu-melanoma,OS (months),5.766666667
+OS (months),5.8,xu-melanoma,OS (months),5.8
+OS (months),56.23333333,xu-melanoma,OS (months),56.23333333
+OS (months),57.93333333,xu-melanoma,OS (months),57.93333333
+OS (months),7.5,xu-melanoma,OS (months),7.5
+OS (months),8.033333333,xu-melanoma,OS (months),8.033333333
+OS (months),8.633333333,xu-melanoma,OS (months),8.633333333
+OS (months),9.033333333,xu-melanoma,OS (months),9.033333333
+Sample_ID,PD-12,xu-melanoma,Sample_ID,PD-12
+Sample_ID,PD-33,xu-melanoma,Sample_ID,PD-33
+Sample_ID,PD-36,xu-melanoma,Sample_ID,PD-36
+Sample_ID,PD-38,xu-melanoma,Sample_ID,PD-38
+Sample_ID,PD-41,xu-melanoma,Sample_ID,PD-41
+Sample_ID,PD-45,xu-melanoma,Sample_ID,PD-45
+Sample_ID,PD-52,xu-melanoma,Sample_ID,PD-52
+Sample_ID,PD-53,xu-melanoma,Sample_ID,PD-53
+Sample_ID,PD-55,xu-melanoma,Sample_ID,PD-55
+Sample_ID,PD-59,xu-melanoma,Sample_ID,PD-59
+Sample_ID,PD-60,xu-melanoma,Sample_ID,PD-60
+Sample_ID,PD-63,xu-melanoma,Sample_ID,PD-63
+Sample_ID,PD-64,xu-melanoma,Sample_ID,PD-64
+Sample_ID,PD-65,xu-melanoma,Sample_ID,PD-65
+Sample_ID,PD-66,xu-melanoma,Sample_ID,PD-66
+Sample_ID,PD-67,xu-melanoma,Sample_ID,PD-67
+Sample_ID,PD-68,xu-melanoma,Sample_ID,PD-68
+Sample_ID,PD-73,xu-melanoma,Sample_ID,PD-73
+Sample_ID,PD-76,xu-melanoma,Sample_ID,PD-76
+Sample_ID,PD-77,xu-melanoma,Sample_ID,PD-77
+Sample_ID,PD-79,xu-melanoma,Sample_ID,PD-79
+Sample_ID,PD-8,xu-melanoma,Sample_ID,PD-8
+Sample_ID,PD-84,xu-melanoma,Sample_ID,PD-84
+Sample_ID,PD-85,xu-melanoma,Sample_ID,PD-85
+Sample_ID,PD-87,xu-melanoma,Sample_ID,PD-87
+Sample_ID,PD-9,xu-melanoma,Sample_ID,PD-9
+Sex,F,xu-melanoma,Sex,F
+Site,Acral,xu-melanoma,Site,Acral
+Site,Cutaneous,xu-melanoma,Site,Cutaneous
+Site,Mucosal,xu-melanoma,Site,Mucosal
+Site,Unknown,xu-melanoma,Site,Unknown
+T stage,T1b,xu-melanoma,T stage,T1b
+T stage,T2,xu-melanoma,T stage,T2
+T stage,T2b,xu-melanoma,T stage,T2b
+T stage,T3,xu-melanoma,T stage,T3
+T stage,T4a,xu-melanoma,T stage,T4a
+T stage,T4b,xu-melanoma,T stage,T4b
+T stage,TX,xu-melanoma,T stage,TX
+TNMstage,I,xu-melanoma,TNMstage,I
+TNMstage,II,xu-melanoma,TNMstage,II
+TNMstage,III,xu-melanoma,TNMstage,III
+TNMstage,IV,xu-melanoma,TNMstage,IV

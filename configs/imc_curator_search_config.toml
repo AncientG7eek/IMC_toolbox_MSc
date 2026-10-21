@@ -5,7 +5,7 @@ extensions = [".zip"]
 extensions = [".tif", ".tiff"]
 strong_positive_keywords = ["full", "stack"]
 weak_positive_keywords = ["ROI"]
-negative_keywords = ["mask", "exclucion"]
+negative_keywords = ["mask", "exclucion", ".pdf", ".csv"]
 destination = "data/processed/images"
 
 [categories.marker_metadata]
@@ -24,7 +24,7 @@ destination = "metadata/clinical"
 
 [categories.raw_imc_data]
 extensions = [".mcd", ".txt"]
-strong_positive_keywords = ["TMA"]
+strong_positive_keywords = ["TMA", ".mcd"]
 weak_positive_keywords = []
 negative_keywords = []
 destination = "metadata/raw_imc_data"

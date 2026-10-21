@@ -38,12 +38,12 @@ def write_manifest(
     for category, comment in categories.items():
         lines.append(f"# {comment}")
 
-        paths = suggestions.get(category, [])
+        per_category_suggestions = suggestions.get(category, [])
 
         lines.append(f"{category} = [")
 
-        for path in paths:
-            lines.append(f'    "{path}",')
+        for suggestion in per_category_suggestions:
+            lines.append(f'    "{suggestion}",')
 
         lines.append("]")
         lines.append("")

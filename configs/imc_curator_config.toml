@@ -2,6 +2,9 @@ projects_dir = "data/cohorts"
 
 [curation]
 curation_manifests_subdir = "curation_manifests"
+global_marker_names_path = "configs/global_files/global_marker_names.csv"
+global_marker_channels_path = "configs/global_files/global_marker_channels.csv"
+global_clinical_values_path = "configs/global_files/global_clinical_values.csv"
 
 [logging]
 logs_subdir = "logs"
