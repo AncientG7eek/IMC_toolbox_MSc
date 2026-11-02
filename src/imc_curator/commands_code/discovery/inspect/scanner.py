@@ -4,7 +4,7 @@ from pathlib import Path, PurePosixPath
 from zipfile import ZipFile, BadZipFile, is_zipfile
 import logging
 
-from imc_curator.commands_code.discovery.classifier import classify_file
+from imc_curator.commands_code.discovery.inspect.classifier import classify_file
 from imc_curator.config import load_search_config
 from imc_curator.logging_utils import get_action_logger
 

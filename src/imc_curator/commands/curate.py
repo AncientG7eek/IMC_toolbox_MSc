@@ -2,15 +2,15 @@
 import typer
 
 from imc_curator.config import get_projects_dir
-from imc_curator.commands_code.curation.standardize import (
+from imc_curator.commands_code.curation.curate.standardize import (
     load_marker_mapping,
     load_clinical_mapping,
 )
-from imc_curator.commands_code.curation.input_loader import (
+from imc_curator.commands_code.curation.curate.input_loader import (
     load_extracted_markers,
     load_extracted_clinical,
 )
-from imc_curator.commands_code.curation.manifest_writer import (
+from imc_curator.commands_code.curation.curate.manifest_writer import (
     write_curation_manifests,
 )
 from imc_curator.completion import complete_datasets

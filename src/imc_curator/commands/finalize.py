@@ -1,6 +1,6 @@
 import typer
 
-from imc_curator.commands_code.curation.finalize import finalizer
+from imc_curator.commands_code.curation.finalize.finalize import finalizer
 from imc_curator.completion import complete_datasets
 
 def finalize(

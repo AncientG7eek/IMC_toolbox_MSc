@@ -1,8 +1,8 @@
 import typer
 
 from imc_curator.config import get_projects_dir, load_search_config
-from imc_curator.commands_code.curation.load_report import load_manifest
-from imc_curator.commands_code.curation.populate import materialize_category
+from imc_curator.commands_code.discovery.populate.load_report import load_manifest
+from imc_curator.commands_code.discovery.populate.populate import materialize_category
 from imc_curator.completion import complete_datasets
 
 
