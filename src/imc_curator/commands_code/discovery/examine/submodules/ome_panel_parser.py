@@ -8,14 +8,18 @@ Unmatched channel names are retained and marked for review.
 from __future__ import annotations
 
 import csv
-import hashlib
 import re
-import tomllib
+import tomli_w
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-import tomli_w
+from imc_curator.config import load_ome_parser_config
+from imc_curator.commands_code.discovery.signature import (
+    build_panel_id,
+    build_panel_signature,
+    format_panel_signature,
+)
 
 
 PARSED_CHANNEL_COLUMNS = [
@@ -26,10 +30,6 @@ PARSED_CHANNEL_COLUMNS = [
     "channel_id",
     "raw_name",
     "raw_fluor",
-    "excitation_wavelength",
-    "emission_wavelength",
-    "color",
-    "samples_per_pixel",
     "biological_marker",
     "metal_ion",
     "parser_rule_id",
@@ -41,7 +41,7 @@ PARSED_CHANNEL_COLUMNS = [
 MANIFEST_VERSION = 1
 
 
-def load_regex_rules(rules_path: Path) -> list[dict[str, Any]]:
+def load_regex_rules() -> list[dict[str, Any]]:
     """Load enabled regex rules from TOML and compile each pattern once.
 
     Expected format:
@@ -52,12 +52,7 @@ def load_regex_rules(rules_path: Path) -> list[dict[str, Any]]:
         pattern = '^(?P<biological_marker>.*?)\\s*\\((?P<metal_ion>[^()]+)\\)\\s*$'
         enabled = true
     """
-    rules_path = rules_path.expanduser().resolve()
-    if not rules_path.is_file():
-        raise FileNotFoundError(f"OME parser rules file does not exist: {rules_path}")
-
-    with rules_path.open("rb") as file:
-        config = tomllib.load(file)
+    config = load_ome_parser_config()
 
     configured_rules = config.get("rules", [])
     if not isinstance(configured_rules, list):
@@ -167,29 +162,6 @@ def parse_channel(
     return parsed
 
 
-def _normalise_signature_value(value: Any) -> str:
-    """Normalise a signature component without changing the source record."""
-    return str(value or "").strip().casefold()
-
-
-def _channel_signature(channel: dict[str, Any]) -> tuple[str, str]:
-    """Return the identity used to compare panel channel compositions.
-
-    Parsed channels use marker + isotope. Unparsed channels use their raw
-    name/fluor label, so unknown channels remain visible in grouping rather
-    than silently disappearing.
-    """
-    marker = _normalise_signature_value(channel.get("biological_marker"))
-    metal = _normalise_signature_value(channel.get("metal_ion"))
-    if marker and metal:
-        return marker, metal
-
-    raw_name = _normalise_signature_value(channel.get("raw_name"))
-    raw_fluor = _normalise_signature_value(channel.get("raw_fluor"))
-    fallback = raw_name or raw_fluor or "<unnamed-channel>"
-    return f"unparsed:{fallback}", ""
-
-
 def _tiff_path(channel: dict[str, Any]) -> str:
     value = channel.get("tiff_path")
     if value is None or not str(value).strip():
@@ -216,65 +188,73 @@ def _channel_sort_key(channel: dict[str, Any]) -> tuple[int, str, str]:
 def assign_panels(
     parsed_channels: list[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Group TIFFs by their ordered channel signatures.
+    """Group TIFFs by their channel signatures.
 
     Returns a mapping keyed by stable ``panel_id``. Each group contains:
       - ``panel_id``: stable ID derived from the channel signature
-      - ``signature``: ordered, serialisable channel signature
+      - ``signature``: serialisable channel signature
       - ``tiff_paths``: sorted unique TIFF paths in the group
       - ``channels``: representative channel records in channel order
       - ``source_channel_records``: all parsed channel records for group TIFFs
       - ``status``: review-needed if any channel is unparsed
 
-    A TIFF's panel signature is based on channel order and composition, not
-    its filename. Identical signatures get the same panel ID.
+    A TIFF's panel signature is marker-set based: marker-only, independent of
+    channel order, and alphabetically sorted for stable serialisation.
+    Unparsed channels use normalised raw-name fallback markers.
+    Identical signatures get the same panel ID.
     """
     channels_by_tiff: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for channel in parsed_channels:
         channels_by_tiff[_tiff_path(channel)].append(channel)
 
-    tiff_signatures: dict[str, tuple[tuple[str, str], ...]] = {}
+    tiff_signatures: dict[str, list[str]] = {}
     tiff_channels_sorted: dict[str, list[dict[str, Any]]] = {}
 
     for path, channels in channels_by_tiff.items():
         ordered = sorted(channels, key=_channel_sort_key)
         tiff_channels_sorted[path] = ordered
-        tiff_signatures[path] = tuple(_channel_signature(item) for item in ordered)
+        tiff_signatures[path] = build_panel_signature(
+            ordered,
+            marker_key="biological_marker",
+            raw_name_key="raw_name",
+            raw_fluor_key="raw_fluor",
+            channel_sort_key=_channel_sort_key,
+        )
 
-    paths_by_signature: dict[
-        tuple[tuple[str, str], ...], list[str]
-    ] = defaultdict(list)
+    paths_by_signature: dict[tuple[str, ...], list[str]] = defaultdict(list)
+
     for path, signature in tiff_signatures.items():
-        paths_by_signature[signature].append(path)
+        signature_key = tuple(signature)
+        paths_by_signature[signature_key].append(path)
 
     groups: dict[str, dict[str, Any]] = {}
 
-    for signature in sorted(paths_by_signature):
-        # Hash a stable textual representation; IDs don't change merely
-        # because a newly discovered, unrelated panel sorts earlier.
-        signature_text = "\n".join(f"{marker}\t{metal}" for marker, metal in signature)
-        digest = hashlib.sha1(signature_text.encode("utf-8")).hexdigest()[:10]
-        panel_id = f"panel_{digest}"
+    for signature_key in sorted(paths_by_signature):
+        serialisable_signature = list(signature_key)
+        panel_id = build_panel_id(serialisable_signature)
 
-        tiff_paths = sorted(paths_by_signature[signature], key=str.casefold)
+        tiff_paths = sorted(paths_by_signature[signature_key], key=str.casefold)
+
         representative = tiff_channels_sorted[tiff_paths[0]]
+        
         source_records = [
             channel
             for path in tiff_paths
-            for channel in tiff_channels_sorted[path]
+            for channel in sorted(
+                channels_by_tiff[path],
+                key=_channel_sort_key,
+            )
         ]
 
         # A rare hash collision should fail loudly instead of merging panels.
-        if panel_id in groups and groups[panel_id]["signature"] != [
-            {"biological_marker": marker, "metal_ion": metal}
-            for marker, metal in signature
-        ]:
-            raise RuntimeError(f"Panel ID hash collision detected for {panel_id}.")
+        if (
+            panel_id in groups 
+            and groups[panel_id]["signature"] != serialisable_signature
+        ):
+            raise RuntimeError(
+                f"Panel ID hash collision detected for {panel_id}."
+            )
 
-        serialisable_signature = [
-            {"biological_marker": marker, "metal_ion": metal}
-            for marker, metal in signature
-        ]
         needs_review = any(
             channel.get("parse_status") != "parsed"
             for channel in representative
@@ -398,10 +378,8 @@ def write_panel_reports(
     signature_by_tiff: dict[str, str] = {}
 
     for panel_id, group in panel_groups.items():
-        signature_text = "; ".join(
-            f"{item['biological_marker']} ({item['metal_ion']})"
-            for item in group["signature"]
-        )
+        signature_text = format_panel_signature(group["signature"])
+
         for path in group["tiff_paths"]:
             panel_by_tiff[path] = panel_id
             signature_by_tiff[path] = signature_text

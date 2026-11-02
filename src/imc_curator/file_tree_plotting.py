@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import typer
 import tomllib
 from collections import Counter
 from itertools import cycle
@@ -168,11 +169,13 @@ def save_manifest_tree(
     )
 
     manifests_dir = get_manifests_dir(project_dir=project_dir, config=CONFIG)
-    output_dir = project_dir / manifests_dir
+    output_dir = project_dir / manifests_dir / "inspect"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / output_name
 
+    typer.echo("Project's file tree:")
+    typer.echo("")
     console = Console(
         record=True,
         width=120,

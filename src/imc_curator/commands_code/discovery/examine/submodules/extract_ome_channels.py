@@ -99,8 +99,8 @@ def extract_tiff_metadata(
 
     try:
         # Read embedded OME-XML without loading pixel arrays.
-        with tifffile.TiffFile(tiff_path) as tif:
-            ome_xml = tif.ome_metadata
+        with tifffile.TiffFile(tiff_path) as tiff:
+            ome_xml = tiff.ome_metadata
 
         if not ome_xml:
             scan_record["status"] = "no_ome_metadata"

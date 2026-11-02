@@ -1,11 +1,13 @@
 import typer
 
 from imc_curator.commands_code.curation.finalize import finalizer
+from imc_curator.completion import complete_datasets
 
 def finalize(
     name: str = typer.Argument(
         ...,
         help="Name of the cohort project to finalize the curation process of.",
+        autocompletion=complete_datasets,
     ),
 ) -> None:
     """Finalizes the curation process of the dataset. 

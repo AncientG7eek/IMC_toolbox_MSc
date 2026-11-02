@@ -38,7 +38,6 @@ def read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
             }
             for row in reader
         ]
-
     return headers, rows
 
 
@@ -47,33 +46,29 @@ def write_csv(
     headers: list[str],
     rows: list[dict[str, str]],
 ) -> None:
-    """Write CSV rows while preserving the specified column order."""
     path.parent.mkdir(parents=True, exist_ok=True)
-
     with path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(
-            file,
-            fieldnames=headers,
-            extrasaction="ignore",
+            file, fieldnames=headers, extrasaction="ignore"
         )
         writer.writeheader()
         writer.writerows(rows)
 
 
-def ensure_csv(path: Path, headers: list[str]) -> tuple[list[str], list[dict[str, str]]]:
-    """Create a missing reference file, or read the existing one."""
+def ensure_csv(
+    path: Path, headers: list[str]
+) -> tuple[list[str], list[dict[str, str]]]:
     if not path.exists() or path.stat().st_size == 0:
         write_csv(path, headers, [])
         return headers, []
 
     existing_headers, rows = read_csv(path)
-
     missing = set(headers) - set(existing_headers)
     if missing:
         raise ValueError(
-            f"{path} is missing required columns: {', '.join(sorted(missing))}"
+            f"{path} is missing required columns: "
+            f"{', '.join(sorted(missing))}"
         )
-
     return existing_headers, rows
 
 
@@ -81,21 +76,30 @@ def is_approved(value: str) -> bool:
     return value.strip() == "1"
 
 
-def check_approval(
-    manifest_paths: list[Path],
-) -> list[str]:
-    """Return a report of manifests containing unapproved rows."""
+def discover_manifests(
+    curate_dir: Path,
+    manifest_name: str,
+) -> list[Path]:
+    """Discover manifests in both legacy and multi-table layouts."""
+    return sorted(
+        {
+            path
+            for path in curate_dir.rglob(manifest_name)
+            if path.is_file()
+        },
+        key=lambda path: str(path).casefold(),
+    )
+
+
+def check_approval(manifest_paths: list[Path]) -> list[str]:
     problems = []
 
     for path in manifest_paths:
-        _, rows = read_csv(path)
-        if not rows:
-            continue
+        headers, rows = read_csv(path)
 
-        if "approved" not in rows[0]:
+        if "approved" not in headers:
             raise ValueError(f"{path} has no 'approved' column")
 
-        # CSV row numbering includes the header, so first data row is row 2.
         missing_rows = [
             str(index)
             for index, row in enumerate(rows, start=2)
@@ -104,38 +108,41 @@ def check_approval(
 
         if missing_rows:
             problems.append(
-                f"{path.name} lacks approval for CSV rows: "
+                f"{path}: unapproved CSV rows "
                 f"{', '.join(missing_rows)}"
             )
 
     return problems
 
 
-def _final_marker_name(row: dict[str, str], proceed: bool) -> str:
-    """Resolve the final standardized marker name from a review row."""
+
+
+def _final_marker_name(
+    row: dict[str, str], proceed: bool
+) -> str:
     corrected = row.get("user_corrected_marker", "").strip()
     if corrected:
         return corrected
 
-    action = row.get("action", "").strip()
+    action = row.get("action", "").strip().upper()
+    suggested = row.get("suggested_standardized_marker", "").strip()
 
-    if action == "REVIEW_MATCH":
-        return row.get("suggested_standardized_marker", "").strip()
-
-    if action == "ADD_NEW_ENTITY":
-        return row.get("proposed_new_standardized_marker", "").strip()
+    if action in {
+        "REVIEW_MATCH",
+        "ADD_NEW_ENTITY",
+    }:
+        return suggested
 
     if action == "RESOLVE_AMBIGUITY" and proceed:
-        return row.get("suggested_standardized_marker", "").strip()
+        return suggested
 
     return ""
 
 
+
 def _final_clinical_mapping(
-    row: dict[str, str],
-    proceed: bool,
+    row: dict[str, str], proceed: bool
 ) -> tuple[str, str]:
-    """Resolve final standardized clinical feature and value."""
     corrected_feature = row.get("user_corrected_feature", "").strip()
     corrected_value = row.get("user_corrected_value", "").strip()
 
@@ -144,16 +151,13 @@ def _final_clinical_mapping(
 
     action = row.get("action", "").strip()
 
-    if action == "REVIEW_MATCH":
+    if action in [
+        "REVIEW_MATCH",
+        "ADD_NEW_ENTITY",
+    ]:
         return (
             row.get("suggested_standardized_feature", "").strip(),
             row.get("suggested_standardized_value", "").strip(),
-        )
-
-    if action == "ADD_NEW_ENTITY":
-        return (
-            row.get("proposed_new_standardized_feature", "").strip(),
-            row.get("proposed_new_standardized_value", "").strip(),
         )
 
     if action == "RESOLVE_AMBIGUITY" and proceed:
@@ -166,52 +170,48 @@ def _final_clinical_mapping(
 
 
 def _append_alias(existing: str, alias: str) -> str:
-    """Append an alias only if it is not already present."""
     aliases = [
         item.strip()
         for item in existing.replace("|", ";").split(";")
         if item.strip()
     ]
-
     if alias and alias not in aliases:
         aliases.append(alias)
-
     return "; ".join(aliases)
 
 
 def _validate_final_mappings(
-    marker_rows: list[dict[str, str]],
-    clinical_rows: list[dict[str, str]],
+    marker_sources: list[tuple[Path, list[dict[str, str]]]],
+    clinical_sources: list[tuple[Path, list[dict[str, str]]]],
     proceed: bool,
 ) -> None:
-    """Reject rows that still have no usable final mapping."""
     errors = []
 
-    for row_number, row in enumerate(marker_rows, start=2):
-        if not row.get("original_marker", "").strip():
-            continue
+    for path, rows in marker_sources:
+        for row_number, row in enumerate(rows, start=2):
+            if not row.get("original_marker", "").strip():
+                continue
+            if not _final_marker_name(row, proceed):
+                errors.append(
+                    f"{path}, CSV row {row_number}: "
+                    "no final standardized marker"
+                )
 
-        if not _final_marker_name(row, proceed):
-            errors.append(
-                f"Marker manifest CSV row {row_number}: "
-                f"no final standardized marker"
-            )
-
-    for row_number, row in enumerate(clinical_rows, start=2):
-        if not row.get("original_feature", "").strip():
-            continue
-
-        feature, value = _final_clinical_mapping(row, proceed)
-        if not feature or not value:
-            errors.append(
-                f"Clinical manifest CSV row {row_number}: "
-                f"no final standardized feature/value"
-            )
+    for path, rows in clinical_sources:
+        for row_number, row in enumerate(rows, start=2):
+            if not row.get("original_feature", "").strip():
+                continue
+            feature, value = _final_clinical_mapping(row, proceed)
+            if not feature or not value:
+                errors.append(
+                    f"{path}, CSV row {row_number}: "
+                    "no final standardized feature/value"
+                )
 
     if errors:
         raise ValueError(
-            "Some rows have no usable final mapping. Please correct the "
-            "manifest before finalizing:\n- " + "\n- ".join(errors)
+            "Some rows have no usable final mapping. Correct the manifests "
+            "before finalizing:\n- " + "\n- ".join(errors)
         )
 
 
@@ -219,9 +219,7 @@ def update_global_marker_names(
     path: Path,
     manifest_rows: list[dict[str, str]],
 ) -> None:
-    """Update marker names and append original names to Aliases."""
     headers, rows = ensure_csv(path, MARKER_COLUMNS)
-
     by_name = {
         row.get("Marker Name", "").strip(): row
         for row in rows
@@ -244,14 +242,12 @@ def update_global_marker_names(
         else:
             target = by_name[standardized]
             target["Aliases"] = _append_alias(
-                target.get("Aliases", ""),
-                original,
+                target.get("Aliases", ""), original
             )
 
     rows.sort(
         key=lambda row: row.get("Marker Name", "").strip().casefold()
     )
-
     write_csv(path, headers, rows)
 
 
@@ -261,34 +257,27 @@ def update_global_clinical_values(
     cohort: str,
     proceed: bool,
 ) -> None:
-    """Append approved clinical mappings for this cohort."""
     headers, rows = ensure_csv(path, CLINICAL_COLUMNS)
-
     existing = {
-        (
-            row.get("Standardized Feature", "").strip(),
-            row.get("Standardized Value", "").strip(),
-            row.get("Cohort", "").strip(),
-            row.get("Original Feature", "").strip(),
-            row.get("Original Value", "").strip(),
-        )
+        tuple(row.get(column, "").strip() for column in CLINICAL_COLUMNS)
         for row in rows
     }
 
     for review in manifest_rows:
         original_feature = review.get("original_feature", "").strip()
         original_value = review.get("original_value", "").strip()
-
-        standardized_feature, standardized_value = _final_clinical_mapping(
-            review, proceed
+        standardized_feature, standardized_value = (
+            _final_clinical_mapping(review, proceed)
         )
 
-        if not all([
-            original_feature,
-            original_value,
-            standardized_feature,
-            standardized_value,
-        ]):
+        if not all(
+            [
+                original_feature,
+                original_value,
+                standardized_feature,
+                standardized_value,
+            ]
+        ):
             continue
 
         record = (
@@ -298,14 +287,12 @@ def update_global_clinical_values(
             original_feature,
             original_value,
         )
-
         if record in existing:
             continue
 
         rows.append(dict(zip(headers, record)))
         existing.add(record)
 
-    # Sort by cohort, then standardized feature, then standardized value.
     rows.sort(
         key=lambda row: (
             row.get("Cohort", "").strip().casefold(),
@@ -313,21 +300,80 @@ def update_global_clinical_values(
             row.get("Standardized Value", "").strip().casefold(),
         )
     )
-
     write_csv(path, headers, rows)
 
 
 def _panel_name_from_filename(path: Path) -> str:
-    """Derive panel name from markers_form_<panel>_panel_parsed.csv."""
-    prefix = "markers_form_"
-    suffix = "_panel_parsed.csv"
+    """Handle current parsed names and the older marker-parser convention."""
     name = path.name
 
+    if name.endswith("_parsed.csv"):
+        return name[:-len("_parsed.csv")]
+
+    prefix = "markers_form_"
+    suffix = "_panel_parsed.csv"
     if name.startswith(prefix) and name.endswith(suffix):
         return name[len(prefix):-len(suffix)]
 
+    raise ValueError(f"Cannot determine panel from filename: {name}")
+
+
+def _source_key(value: str) -> str:
+    """Normalize a source filename/path for manifest matching."""
+    return Path(value.strip().replace("\\", "/")).name.casefold()
+
+
+def _rows_for_panel(
+    marker_sources: list[tuple[Path, list[dict[str, str]]]],
+    extracted_path: Path,
+) -> list[dict[str, str]]:
+    """Find the manifest rows belonging to this extracted marker table."""
+    target_name = extracted_path.name.casefold()
+    target_panel = _panel_name_from_filename(extracted_path).casefold()
+
+    explicit_matches = []
+    legacy_candidates = []
+
+    for manifest_path, rows in marker_sources:
+        for row in rows:
+            source_file = _source_key(row.get("source_file", ""))
+            panel_id = row.get("panel_id", "").strip().casefold()
+
+            if source_file:
+                if source_file == target_name:
+                    explicit_matches.append(row)
+                continue
+
+            # New per-panel manifests may be named after the panel.
+            if (
+                manifest_path.stem.casefold()
+                in {
+                    f"{target_panel}_mapping_review",
+                    f"{target_panel}_marker_mapping_review",
+                }
+            ):
+                explicit_matches.append(row)
+            else:
+                legacy_candidates.append(row)
+
+    if explicit_matches:
+        return explicit_matches
+
+    # Backward compatibility: a single legacy manifest can be matched by
+    # original marker + channel. Multiple legacy manifests are ambiguous.
+    legacy_manifests = [
+        (path, rows)
+        for path, rows in marker_sources
+        if path.parent == path.parents[0]
+        and path.name == MARKER_MANIFEST
+    ]
+    if len(legacy_manifests) == 1:
+        return legacy_candidates
+
     raise ValueError(
-        f"Cannot determine panel name from marker filename: {path.name}"
+        f"No marker review rows found for {extracted_path.name}. "
+        "Ensure the manifest contains source_file/panel_id, or is a "
+        "single legacy marker_mapping_review.csv."
     )
 
 
@@ -335,18 +381,9 @@ def update_global_marker_channels(
     channel_path: Path,
     marker_names_path: Path,
     extracted_marker_files: list[Path],
-    manifest_rows: list[dict[str, str]],
+    marker_sources: list[tuple[Path, list[dict[str, str]]]],
 ) -> None:
-    """
-    Update panel channel assignments in the global marker-channel reference.
-
-    Marker Name is the standardized marker name. The Aliases column is copied
-    from the global marker-name reference. Each panel gets a separate column.
-    """
-    marker_headers, marker_name_rows = ensure_csv(
-        marker_names_path, MARKER_COLUMNS
-    )
-
+    _, marker_name_rows = ensure_csv(marker_names_path, MARKER_COLUMNS)
     aliases_by_marker = {
         row.get("Marker Name", "").strip():
         row.get("Aliases", "").strip()
@@ -354,18 +391,16 @@ def update_global_marker_channels(
         if row.get("Marker Name", "").strip()
     }
 
-    panels = {
-        _panel_name_from_filename(path)
+    panel_by_file = {
+        path: _panel_name_from_filename(path)
         for path in extracted_marker_files
     }
 
     headers, rows = ensure_csv(
-        channel_path,
-        ["Marker Name", "Comment", "Aliases"],
+        channel_path, ["Marker Name", "Comment", "Aliases"]
     )
 
-    # Add any new panel columns without removing existing columns.
-    for panel in sorted(panels):
+    for panel in sorted(set(panel_by_file.values())):
         if panel not in headers:
             headers.append(panel)
             for row in rows:
@@ -377,11 +412,9 @@ def update_global_marker_channels(
         if row.get("Marker Name", "").strip()
     }
 
-    # Associate review rows with each extracted file using marker/channel
-    # information. Channel number is taken from the extracted CSV.
-    for extracted_path in extracted_marker_files:
-        panel = _panel_name_from_filename(extracted_path)
+    for extracted_path, panel in panel_by_file.items():
         _, extracted_rows = read_csv(extracted_path)
+        reviews = _rows_for_panel(marker_sources, extracted_path)
 
         for extracted in extracted_rows:
             original_marker = extracted.get("biological_marker", "").strip()
@@ -390,24 +423,27 @@ def update_global_marker_channels(
             if not original_marker or not channel_number:
                 continue
 
-            matching_reviews = [
-                review
-                for review in manifest_rows
+            matches = [
+                review for review in reviews
                 if review.get("original_marker", "").strip() == original_marker
                 and review.get("channel_number", "").strip() == channel_number
             ]
 
-            if not matching_reviews:
+            if len(matches) > 1:
+                raise ValueError(
+                    f"Ambiguous review rows for {extracted_path.name}: "
+                    f"marker {original_marker!r}, channel {channel_number!r}."
+                )
+            if not matches:
                 continue
 
-            standardized = _final_marker_name(matching_reviews[0], proceed=True)
+            standardized = _final_marker_name(matches[0], proceed=True)
             if not standardized:
                 continue
 
             if standardized not in by_name:
                 new_row = {header: "" for header in headers}
                 new_row["Marker Name"] = standardized
-                new_row["Aliases"] = aliases_by_marker.get(standardized, "")
                 rows.append(new_row)
                 by_name[standardized] = new_row
 
@@ -415,11 +451,9 @@ def update_global_marker_channels(
             target["Aliases"] = aliases_by_marker.get(standardized, "")
             target[panel] = channel_number
 
-    # Sort rows alphabetically by standardized marker name.
     rows.sort(
         key=lambda row: row.get("Marker Name", "").strip().casefold()
     )
-
     write_csv(channel_path, headers, rows)
 
 
@@ -429,90 +463,103 @@ def finalizer(
         help="Name of the cohort project to finalize.",
     ),
 ) -> None:
-    """Validate curation approvals and update global reference files."""
+    """Validate all curation manifests and update global reference files."""
     config = load_config()
     project_dir = get_projects_dir() / name
     curate_dir = project_dir / "curation_manifests" / "curate"
 
-    marker_manifest_path = curate_dir / MARKER_MANIFEST
-    clinical_manifest_path = curate_dir / CLINICAL_MANIFEST
+    if not project_dir.is_dir():
+        raise FileNotFoundError(f"Project directory not found: {project_dir}")
 
-    for path in [marker_manifest_path, clinical_manifest_path]:
-        if not path.exists():
-            raise FileNotFoundError(f"Curation manifest not found: {path}")
+    
+    marker_manifests = discover_manifests(curate_dir, MARKER_MANIFEST)
+    clinical_manifests = discover_manifests(curate_dir, CLINICAL_MANIFEST)
 
-    problems = check_approval([
-        marker_manifest_path,
-        clinical_manifest_path,
-    ])
+    # Also support descriptive per-panel/per-table filenames.
+    if not marker_manifests:
+        marker_dir = curate_dir / "markers"
+        if marker_dir.is_dir():
+            marker_manifests = sorted(marker_dir.glob("*mapping_review.csv"))
 
+    if not clinical_manifests:
+        clinical_dir = curate_dir / "clinical"
+        if clinical_dir.is_dir():
+            clinical_manifests = sorted(clinical_dir.glob("*mapping_review.csv"))
+
+    if not marker_manifests:
+        raise FileNotFoundError(
+            f"No marker review manifests found under {curate_dir}"
+        )
+
+    # Clinical tables are optional for a cohort.
+    marker_sources = [
+        (path, read_csv(path)[1]) for path in marker_manifests
+    ]
+    clinical_sources = [
+        (path, read_csv(path)[1]) for path in clinical_manifests
+    ]
+
+    # Validate all manifests that actually exist.
+    problems = check_approval(marker_manifests + clinical_manifests)
     proceed = False
+
     if problems:
-        typer.echo("These files still have rows without approval:")
+        typer.echo("These manifests still contain unapproved rows:")
         for problem in problems:
             typer.echo(f"- {problem}")
-
-        typer.echo(
-            "\nPlease review the rows and put 1 in the approved column."
-        )
         answer = typer.prompt(
             'To continue with suggestions without approval, type "proceed"',
             default="",
             show_default=False,
         )
-
         if answer.strip().lower() != "proceed":
             typer.echo("Finalization cancelled.")
             raise typer.Exit(code=1)
-
         proceed = True
 
-    _, marker_rows = read_csv(marker_manifest_path)
-    _, clinical_rows = read_csv(clinical_manifest_path)
+    _validate_final_mappings(marker_sources, clinical_sources, proceed)
 
-    # Even with "proceed", rows must resolve to usable final names.
-    _validate_final_mappings(marker_rows, clinical_rows, proceed)
 
-    marker_names_path = Path(
-        config["curation"]["global_marker_names_path"]
-    )
-    marker_channels_path = Path(
-        config["curation"]["global_marker_channels_path"]
-    )
-    clinical_values_path = Path(
-        config["curation"]["global_clinical_values_path"]
-    )
+    marker_names_path = Path(config["curation"]["global_marker_names_path"])
+    marker_channels_path = Path(config["curation"]["global_marker_channels_path"])
+    clinical_values_path = Path(config["curation"]["global_clinical_values_path"])
 
+    extracted_dir = (
+        project_dir / "curation_manifests" / "extract" / "markers"
+    )
     extracted_marker_files = sorted(
-        (
-            project_dir
-            / "curation_manifests"
-            / "extract"
-            / "markers"
-        ).glob("markers_form_*_panel_parsed.csv")
+        path for path in extracted_dir.glob("*_parsed.csv")
+        if path.is_file()
     )
 
     if not extracted_marker_files:
         raise FileNotFoundError(
-            "No extracted marker files found under "
-            f"{project_dir / 'curation_manifests' / 'extract' / 'markers'}"
+            f"No parsed marker files found under {extracted_dir}"
         )
 
-    # Validate all inputs before making the global updates.
-    update_global_marker_names(marker_names_path, marker_rows)
+    all_marker_rows = [
+        row for _, rows in marker_sources for row in rows
+    ]
+    all_clinical_rows = [
+        row for _, rows in clinical_sources for row in rows
+    ]
 
+    # All manifests and mappings are validated before global writes begin.
+    update_global_marker_names(marker_names_path, all_marker_rows)
     update_global_clinical_values(
         clinical_values_path,
-        clinical_rows,
+        all_clinical_rows,
         cohort=name,
         proceed=proceed,
     )
-
     update_global_marker_channels(
         marker_channels_path,
         marker_names_path,
         extracted_marker_files,
-        marker_rows,
+        marker_sources,
     )
 
     typer.echo(f"Finalization completed for cohort: {name}")
+    typer.echo(f"Marker manifests processed: {len(marker_manifests)}")
+    typer.echo(f"Clinical manifests processed: {len(clinical_manifests)}")
+    typer.echo(f"Marker tables processed: {len(extracted_marker_files)}")

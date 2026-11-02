@@ -8,14 +8,14 @@ from imc_curator.config import load_config, get_manifests_dir
 CONFIG = load_config()
 
 
-def load_manifest(project_dir: Path) -> dict:
+def load_manifest(project_dir: Path, command: str) -> dict:
     """Load a project's manifest.toml."""
 
     manifests_dir = get_manifests_dir(
         project_dir=project_dir,
         config=CONFIG,
     )
-    manifest_path = manifests_dir / "manifest.toml"
+    manifest_path = manifests_dir / command / "manifest.toml"
 
     if not manifest_path.exists():
         raise RuntimeError(

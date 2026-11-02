@@ -16,6 +16,13 @@ SEARCH_CONFIG_FILE = (
     / "imc_curator_search_config.toml"
 )
 
+OME_PARSER_CONFIG_FILE = (
+    PROJECT_ROOT
+    / "configs"
+    / "imc_curator_ome_parser_config.toml"
+)
+
+
 
 def load_config() -> dict:
     """Load the main IMC Curator configuration."""
@@ -41,6 +48,23 @@ def load_search_config() -> dict:
     with SEARCH_CONFIG_FILE.open("rb") as f:
         return tomllib.load(f)
 
+def get_category_config(category: str) -> dict:
+    search_config = load_search_config()
+    return search_config["categories"][category]
+    
+
+def load_ome_parser_config() -> dict:
+    """Load ome parsing rules."""
+
+    if not OME_PARSER_CONFIG_FILE.exists():
+        raise RuntimeError(
+            f"OME parsing rules configuration file not found: "
+            f"{OME_PARSER_CONFIG_FILE}"
+        )
+
+    with OME_PARSER_CONFIG_FILE.open("rb") as f:
+        return tomllib.load(f)
+
 
 def get_projects_dir() -> Path:
     """Return the configured directory for cohort projects."""
@@ -60,6 +84,7 @@ def get_projects_dir() -> Path:
     projects_dir.mkdir(parents=True, exist_ok=True)
 
     return projects_dir
+
 
 def get_archive_extensions() -> set[str]:
     """Return supported archive extensions."""
@@ -83,3 +108,7 @@ def get_manifests_dir(project_dir: Path, config: dict) -> Path:
 
 def get_logs_dir(project_dir: Path, config: dict) -> Path:
     return project_dir / config["logging"]["logs_subdir"]
+
+def get_processed_images_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["project_file_system"]["processed_images_dir"]
+

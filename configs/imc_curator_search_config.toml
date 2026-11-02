@@ -6,7 +6,7 @@ extensions = [".tif", ".tiff"]
 strong_positive_keywords = ["full", "stack"]
 weak_positive_keywords = ["ROI"]
 negative_keywords = ["mask", "exclucion", ".pdf", ".csv"]
-destination = "data/processed/images"
+destination = "data/images/unpacked"
 
 [categories.marker_metadata]
 extensions = [".csv", ".tsv", ".xls", ".xlsx"]

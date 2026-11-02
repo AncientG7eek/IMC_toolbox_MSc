@@ -3,6 +3,7 @@ import typer
 from imc_curator.config import get_projects_dir, load_search_config
 from imc_curator.commands_code.curation.load_report import load_manifest
 from imc_curator.commands_code.curation.populate import materialize_category
+from imc_curator.completion import complete_datasets
 
 
 SEARCH_CATEGORIES = set(
@@ -11,12 +12,17 @@ SEARCH_CATEGORIES = set(
 
 
 def populate(
-    name: str = typer.Argument(...),
+    name: str = typer.Argument(
+        ...,
+        help="Name of the cohort project to inspect.",
+        autocompletion=complete_datasets,
+    ),
 ) -> None:
+    
     projects_dir = get_projects_dir()
     project_dir = projects_dir / name
 
-    manifest = load_manifest(project_dir)
+    manifest = load_manifest(project_dir=project_dir, command="inspect")
     inputs = manifest.get("inputs", {})
 
     raw_dir = project_dir / "data" / "raw" / "source"

@@ -7,6 +7,11 @@ from typing import Any
 import pandas as pd
 import tifffile
 from readimc import MCDFile
+from imc_curator.commands_code.discovery.signature import (
+    build_panel_id,
+    build_panel_signature,
+    format_panel_signature,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -325,37 +330,49 @@ def extract_raw_imc(
 
     panel_ids_by_signature: dict[tuple, str] = {}
     panel_output_rows: dict[str, list[dict[str, Any]]] = {}
+    panel_signature_text_by_id: dict[str, str] = {}
     acquisition_panel_rows: list[dict[str, Any]] = []
 
     for acquisition_key, rows in acquisition_groups.items():
         # Keep channels in the order they occur in the acquisition.
         rows = sorted(rows, key=lambda row: row["channel_index"])
 
-        signature = tuple(
-            (
-                int(row["channel_index"]),
-                str(row["channel_label"]),
-                str(row["channel_name"]),
-                _clean_target_name(
-                    str(row["channel_name"]),
-                    target_name_regex,
-                ),
+        channel_records = []
+        for row in rows:
+            original_name = str(row["channel_name"])
+            channel_label = str(row["channel_label"])
+            target_name = _clean_target_name(
+                original_name,
+                target_name_regex,
             )
-            for row in rows
-        )
 
-        if signature not in panel_ids_by_signature:
-            panel_id = f"panel_{len(panel_ids_by_signature) + 1:03d}"
-            panel_ids_by_signature[signature] = panel_id
+            channel_records.append(
+                {
+                    "channel_number": int(row["channel_index"]) + 1,
+                    "raw_name": original_name,
+                    "raw_fluor": channel_label,
+                    "biological_marker": target_name,
+                    "metal_ion": channel_label,
+                }
+            )
+
+        signature = build_panel_signature(
+            channel_records,
+            marker_key="biological_marker",
+            raw_name_key="raw_name",
+            raw_fluor_key="raw_fluor",
+        )
+        signature_key = tuple(signature)
+
+        if signature_key not in panel_ids_by_signature:
+            panel_id = build_panel_id(signature)
+            panel_ids_by_signature[signature_key] = panel_id
+            panel_signature_text_by_id[panel_id] = format_panel_signature(signature)
 
             marker_rows = []
-            for row in rows:
-                channel_label = str(row["channel_label"])
-                original_name = str(row["channel_name"])
-                target_name = _clean_target_name(
-                    original_name,
-                    target_name_regex,
-                )
+            for record in channel_records:
+                channel_label = str(record["raw_fluor"])
+                target_name = str(record["biological_marker"])
 
                 marker_rows.append(
                     {
@@ -364,14 +381,14 @@ def extract_raw_imc(
                         "keep": 1,
                         "KEEP/REJECT [0/1]": 1,
                         "biological_marker": target_name,
-                        "channel_number": int(row["channel_index"]) + 1,
+                        "channel_number": int(record["channel_number"]),
                         "metal_isotope": channel_label,
                     }
                 )
 
             panel_output_rows[panel_id] = marker_rows
 
-        panel_id = panel_ids_by_signature[signature]
+        panel_id = panel_ids_by_signature[signature_key]
 
         mcd_file, slide_id, acquisition_id = acquisition_key
         tiff_name = (
@@ -387,6 +404,7 @@ def extract_raw_imc(
                 "slide_id": slide_id,
                 "acquisition_id": acquisition_id,
                 "panel_id": panel_id,
+                "panel_signature": panel_signature_text_by_id[panel_id],
                 "panel_file": f"panels/{panel_id}.csv",
             }
         )
@@ -409,6 +427,7 @@ def extract_raw_imc(
             "slide_id",
             "acquisition_id",
             "panel_id",
+            "panel_signature",
             "panel_file",
         ],
     ).to_csv(panel_map_path, index=False)

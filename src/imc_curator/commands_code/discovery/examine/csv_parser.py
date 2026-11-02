@@ -137,12 +137,59 @@ metal_isotope_column = ''
 metal_isotope_regex = ''
 '''
 
+def create_image_to_panel_assignment(
+    marker_files: list[Path],
+    image_paths: list[Path],
+    project_dir: Path,
+    output_path: Path,
+) -> Path:
+    """Assign images to marker files and write the assignments as TOML."""
+    assignments: dict[Path, list[str]] = {
+        marker_file: []
+        for marker_file in marker_files
+    }
+
+    if marker_files:
+        first_marker_file = marker_files[0]
+
+        for image_path in image_paths:
+            image_prefix = image_path.name.split("_")[0].casefold()
+
+            matching_marker = next(
+                (
+                    marker_file
+                    for marker_file in marker_files
+                    if marker_file.name.split("_")[0].casefold()
+                    == image_prefix
+                ),
+                first_marker_file,
+            )
+
+            assignments[matching_marker].append(
+                path_for_form(image_path, project_dir)
+            )
+
+    lines = [
+        "# IMC CURATION — IMAGE TO MARKER PANEL ASSIGNMENTS",
+        "",
+        "# Each key is a marker CSV filename.",
+        "# Each value lists the images assigned to that marker panel.",
+        "",
+        "[images_by_marker]",
+        "",
+    ]
+
+    for marker_file, assigned_images in assignments.items():
+        lines.append(f"{toml_string(marker_file.name)} = {toml_string_list(assigned_images)}")
+        lines.append("")
+
+    return create_form("\n".join(lines), output_path)
 
 
 def clinical_csv_parser(
     clinical_file_path: Path,
     review_csv_path: Path,
-    example_image_paths: list[Path],
+    image_paths: list[Path],
     project_dir: Path,
 ) -> str:
     """
@@ -171,9 +218,9 @@ def clinical_csv_parser(
     source_path = path_for_form(clinical_file_path, project_dir)
     review_path = path_for_form(review_csv_path, project_dir)
 
-    image_paths = [
+    example_image_paths = [
         path_for_form(path, project_dir)
-        for path in example_image_paths[:MAX_EXAMPLE_IMAGES]
+        for path in image_paths[:MAX_EXAMPLE_IMAGES]
     ]
 
     return f'''# IMC CURATION — CLINICAL FEATURE FORM
@@ -250,7 +297,7 @@ selection_row_index = {selection_row_index}
 [examples]
 # Example image paths from the populated images directory.
 # Use these to determine how image names encode the clinical identifier.
-image_paths = {toml_string_list(image_paths)}
+image_paths = {toml_string_list(example_image_paths)}
 '''
 
 
@@ -262,7 +309,7 @@ def create_form(text: str, output_path: Path) -> Path:
 
 
 
-def examine_marker_and_clinical_tables(project_dir: Path) -> str:
+def examine_marker_and_clinical_tables(project_dir: Path, output_dir) -> str:
     """
     Discover populated marker and clinical CSVs and generate review forms.
 
@@ -283,16 +330,18 @@ def examine_marker_and_clinical_tables(project_dir: Path) -> str:
     markers_path = destination_path("marker_metadata")
     clinical_path = destination_path("clinical_data")
 
-    output_dir = project_dir / "curation_manifests" / "examine"
+    output_dir = output_dir
     markers_output_dir = output_dir / "markers"
     clinical_output_dir = output_dir / "clinical"
 
     markers_output_dir.mkdir(parents=True, exist_ok=True)
     clinical_output_dir.mkdir(parents=True, exist_ok=True)
 
+    image_to_panel_assign_path = markers_output_dir / f"assign_images_to_panels.toml"
+
     # Find up to six image examples for clinical matching.
     if images_path.is_dir():
-        example_image_paths = sorted(
+        image_paths = sorted(
             (
                 path
                 for path in images_path.rglob("*")
@@ -300,9 +349,9 @@ def examine_marker_and_clinical_tables(project_dir: Path) -> str:
                 and path.suffix.lower() in IMAGE_EXTENSIONS
             ),
             key=lambda path: str(path).lower(),
-        )[:MAX_EXAMPLE_IMAGES]
+        )
     else:
-        example_image_paths = []
+        image_paths = []
 
     marker_table_forms: list[tuple[Path, Path]] = []
     clinical_table_forms: list[tuple[Path, Path]] = []
@@ -319,13 +368,20 @@ def examine_marker_and_clinical_tables(project_dir: Path) -> str:
             key=lambda path: str(path).lower(),
         )
 
+        create_image_to_panel_assignment(
+            marker_files=marker_files,
+            image_paths=image_paths,
+            project_dir=project_dir,
+            output_path=image_to_panel_assign_path,
+        )
+
         for markers_file in marker_files:
             stem = markers_file.stem
 
             review_csv_path = (
-                markers_output_dir / f"markers_review_{stem}.csv"
+                markers_output_dir / stem / f"markers_review_{stem}.csv"
             )
-            form_path = markers_output_dir / f"markers_form_{stem}.toml"
+            form_path = markers_output_dir / stem / f"markers_form_{stem}.toml"
 
             form_text = markers_csv_parser(
                 markers_file_path=markers_file,
@@ -358,7 +414,7 @@ def examine_marker_and_clinical_tables(project_dir: Path) -> str:
             form_text = clinical_csv_parser(
                 clinical_file_path=clinical_file,
                 review_csv_path=review_csv_path,
-                example_image_paths=example_image_paths,
+                image_paths=image_paths,
                 project_dir=project_dir,
             )
             form_path = create_form(form_text, form_path).resolve()
@@ -381,6 +437,10 @@ def examine_marker_and_clinical_tables(project_dir: Path) -> str:
         report_lines.append(
             "Please fill the following forms to parse them automatically:"
         )
+
+        report_lines.append(f"  Image assignment:       {image_to_panel_assign_path}")
+        report_lines.append("")
+        report_lines.append("  Channel choice:")
         report_lines.extend(
             f"  {form_path}"
             for _, form_path in marker_table_forms

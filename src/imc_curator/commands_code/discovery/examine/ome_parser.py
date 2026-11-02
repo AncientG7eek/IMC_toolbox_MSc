@@ -18,13 +18,11 @@ def examine_ome_metadata(
     input_dir: Path,
     output_dir: Path,
     logs_dir: Path,
-    rules_path: Path,
 ) -> str:
     """Extract OME metadata, parse channel names, and identify candidate panels."""
     input_dir = input_dir.expanduser().resolve()
     output_dir = output_dir.expanduser().resolve()
     logs_dir = logs_dir.expanduser().resolve()
-    rules_path = rules_path.expanduser().resolve()
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -52,7 +50,7 @@ def examine_ome_metadata(
     )
 
     # 2. Parse channel names using the configured regex rules.
-    rules = load_regex_rules(rules_path)
+    rules = load_regex_rules()
     parsed_channels = [
         parse_channel(channel, rules)
         for channel in channels

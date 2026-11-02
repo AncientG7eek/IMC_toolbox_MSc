@@ -3,6 +3,11 @@ import tomllib
 from pathlib import Path
 
 import pandas as pd
+from imc_curator.commands_code.discovery.signature import (
+    build_panel_id,
+    build_panel_signature,
+    format_panel_signature,
+)
 
 
 REVIEW_COLUMN = "KEEP/REJECT [0/1]"
@@ -187,6 +192,34 @@ def extract_marker_tables(
             )
         else:
             parsed_table["metal_isotope"] = pd.NA
+
+        if parsed_table.empty:
+            parsed_table["panel_id"] = ""
+            parsed_table["panel_signature"] = ""
+        else:
+            signature_channels = []
+            for _, row in parsed_table.iterrows():
+                signature_channels.append(
+                    {
+                        "channel_number": row.get("channel_number", 0),
+                        "raw_name": row.get(marker_column, ""),
+                        "raw_fluor": row.get("metal_isotope", ""),
+                        "biological_marker": row.get("biological_marker", ""),
+                        "metal_ion": row.get("metal_isotope", ""),
+                    }
+                )
+
+            signature = build_panel_signature(
+                signature_channels,
+                marker_key="biological_marker",
+                raw_name_key="raw_name",
+                raw_fluor_key="raw_fluor",
+            )
+            panel_id = build_panel_id(signature)
+            panel_signature = format_panel_signature(signature)
+
+            parsed_table["panel_id"] = panel_id
+            parsed_table["panel_signature"] = panel_signature
 
         output_path = (
             output_dir / f"{form_path.stem.removesuffix('_form')}_parsed.csv"

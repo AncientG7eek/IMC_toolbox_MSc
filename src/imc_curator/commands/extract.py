@@ -14,12 +14,14 @@ from imc_curator.commands_code.discovery.extract.clinical_parser import (
 from imc_curator.commands_code.discovery.extract.raw_imc_parser import (
     extract_raw_imc,
 )
+from imc_curator.completion import complete_datasets
 
 
 def extract(
     name: str = Argument(
         ...,
         help="Name of the cohort project to extract metadata from.",
+        autocompletion=complete_datasets,
     ),
 ) -> None:
     """
@@ -52,12 +54,12 @@ def extract(
         output_dir=extract_dir / "markers",
     )
 
-    clinical_form_path = examine_dir / "clinical" / "clinical_form.toml"
+    clinical_form_path = examine_dir / "clinical" 
 
     if clinical_form_path.exists():
         clinical_report = extract_clinical_tables(
             project_dir=project_dir,
-            forms_dir=examine_dir / "clinical",
+            forms_dir=clinical_form_path,
             output_dir=extract_dir / "clinical",
         )
     else:

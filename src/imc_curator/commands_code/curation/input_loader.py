@@ -10,92 +10,124 @@ IMAGE_COLUMNS = {"image_path", "image_name", "image_id"}
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
-    """Read a CSV while preserving its column names and cell values."""
-    matching_files = list(path.parent.absolute().glob(path.name))
+    """Read one exact CSV path, preserving column names and cell values."""
+    if not path.is_file():
+        raise FileNotFoundError(f"CSV file does not exist: {path}")
 
-    if len(matching_files) == 1:
-        with matching_files[0].open(
-            "r", encoding="utf-8-sig", newline=""
-        ) as file:
-            reader = csv.DictReader(file)
-    
-            if reader.fieldnames is None:
-                raise ValueError(f"CSV file has no header: {path}")
-    
-            return [
-                {
-                    key: (value or "").strip()
-                    for key, value in row.items()
-                    if key is not None
-                }
-                for row in reader
-            ]
-    elif not matching_files:
-        raise FileNotFoundError(
-            f"No marker files found in {path.parent.absolute()}"
-        )
-    else:
-        raise ValueError(
-            f"Expected one marker file, found {len(matching_files)}: "
-            f"{matching_files}"
-        )
-    
+    with path.open("r", encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file)
+
+        if reader.fieldnames is None:
+            raise ValueError(f"CSV file has no header: {path}")
+
+        return [
+            {
+                key: (value or "").strip()
+                for key, value in row.items()
+                if key is not None
+            }
+            for row in reader
+        ]
+
+
+def _marker_candidates(
+    original_marker: str,
+    marker_mapping: dict[str, Any],
+) -> list[Any]:
+    """Look up candidates using the available reference-map index."""
+    by_original = marker_mapping.get("by_original")
+    by_alias = marker_mapping.get("by_alias", {})
+
+    candidates = None
+    if isinstance(by_original, dict):
+        candidates = by_original.get(original_marker)
+
+    if candidates is None and isinstance(by_alias, dict):
+        candidates = by_alias.get(original_marker)
+
+    return list(candidates or [])
 
 
 def load_extracted_markers(
     project_name: str,
     marker_mapping: dict[str, Any],
-) -> dict[str, Any]:
+) -> list[dict[str, Any]]:
     """
-    Load extracted marker data and look up biological_marker values.
+    Load every parsed marker table independently.
 
-    Returns:
-        rows:
-            Original extracted rows, with standardized_marker_candidates added.
-
-        matches:
-            Distinct original marker names and their candidate mappings.
-
-        unmatched:
-            Distinct marker names with no reference match.
+    Each returned bundle contains source_file, panel_id, path, rows,
+    matches, and unmatched.
     """
-    projects_dir = get_projects_dir()
-    project_dir = projects_dir / project_name
-    path = project_dir / "curation_manifests" / "extract" / "markers" / "markers_form_*_panel_parsed.csv"
-    rows = _read_csv(path)
+    project_dir = Path(project_name)
+    if not project_dir.is_absolute():
+        project_dir = get_projects_dir() / project_dir
+    project_dir = project_dir.resolve()
 
-    if rows and "biological_marker" not in rows[0]:
-        raise ValueError(
-            f"{path} must contain a 'biological_marker' column"
-        )
-
-    # Support either reference key, depending on your reference_manager version.
-    by_original = marker_mapping.get(
-        "by_original",
-        marker_mapping.get("by_alias", {}),
+    marker_dir = (
+        project_dir / "curation_manifests" / "extract" / "markers"
+    )
+    marker_files = sorted(
+        marker_dir.glob("*.csv"),
+        key=lambda path: path.name.casefold(),
     )
 
-    matches: dict[str, list[Any]] = {}
-    unmatched: list[str] = []
+    if not marker_files:
+        raise FileNotFoundError(
+            f"No parsed marker tables found in {marker_dir}"
+        )
 
-    for row in rows:
-        original_marker = row.get("biological_marker", "").strip()
+    bundles: list[dict[str, Any]] = []
 
-        if not original_marker:
-            continue
+    for path in marker_files:
+        rows = _read_csv(path)
 
-        if original_marker not in matches:
-            candidates = by_original.get(original_marker, [])
-            matches[original_marker] = candidates
+        if rows:
+            required = {"biological_marker", "channel_number"}
+            missing = required - set(rows[0])
+            if missing:
+                raise ValueError(
+                    f"{path} is missing required columns: "
+                    f"{', '.join(sorted(missing))}"
+                )
 
-            if not candidates:
-                unmatched.append(original_marker)
-                
-    return {
-        "rows": rows,
-        "matches": matches,
-        "unmatched": unmatched,
-    }
+        panel_id = path.stem
+        matches: dict[str, list[Any]] = {}
+        unmatched: list[str] = []
+
+        for row in rows:
+            original_marker = row.get("biological_marker", "").strip()
+            row["source_file"] = path.name
+            row["panel_id"] = panel_id
+
+            if not original_marker:
+                row["standardized_marker_candidates"] = []
+                continue
+
+            if original_marker not in matches:
+                candidates = _marker_candidates(
+                    original_marker,
+                    marker_mapping,
+                )
+                matches[original_marker] = candidates
+                if not candidates:
+                    unmatched.append(original_marker)
+
+            row["standardized_marker_candidates"] = matches[
+                original_marker
+            ]
+
+        bundles.append(
+            {
+                "source_file": path.name,
+                "panel_id": panel_id,
+                "path": path,
+                "rows": rows,
+                "matches": matches,
+                "unmatched": unmatched,
+            }
+        )
+
+    return bundles
 
 
 def load_extracted_clinical(
@@ -103,20 +135,11 @@ def load_extracted_clinical(
     clinical_mapping: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    Load extracted clinical data and look up unique feature/value pairs.
+    Load one image-level clinical matching table.
 
     The lookup key is (original_feature, original_value).
-
-    Returns:
-        rows:
-            Original image-level clinical records.
-
-        matches:
-            Feature -> original value -> candidate mappings.
-
-        unmatched:
-            Feature -> original values with no reference match.
     """
+    path = Path(path)
     rows = _read_csv(path)
 
     if rows:
@@ -128,12 +151,11 @@ def load_extracted_clinical(
             )
 
     by_original = clinical_mapping.get("by_original", {})
-
-    # Find clinical features from the CSV headers.
     clinical_features = [
         column
         for column in (rows[0].keys() if rows else [])
         if column not in IMAGE_COLUMNS
+        and column not in {"_merge", "image_id"}
     ]
 
     matches: dict[str, dict[str, list[Any]]] = {}
@@ -143,23 +165,19 @@ def load_extracted_clinical(
         matches[feature] = {}
         unmatched[feature] = []
 
-        # Collect unique non-empty values across all images.
         unique_values = dict.fromkeys(
-            row[feature]
+            row.get(feature, "")
             for row in rows
             if row.get(feature, "").strip()
         )
 
         for value in unique_values:
-            key = (feature, value)
-            candidates = by_original.get(key, [])
-
+            candidates = list(by_original.get((feature, value), []) or [])
             matches[feature][value] = candidates
 
             if not candidates:
                 unmatched[feature].append(value)
 
-    # Remove empty unmatched entries for a cleaner report.
     unmatched = {
         feature: values
         for feature, values in unmatched.items()
@@ -167,6 +185,8 @@ def load_extracted_clinical(
     }
 
     return {
+        "source_file": path.name,
+        "path": path,
         "rows": rows,
         "matches": matches,
         "unmatched": unmatched,

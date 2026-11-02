@@ -12,14 +12,21 @@ from imc_curator.commands_code.discovery.examine.csv_parser import (
 from imc_curator.config import (
     get_projects_dir,
     get_manifests_dir,
+    get_category_config,
     get_logs_dir,
     load_config,
 )
+from imc_curator.completion import complete_datasets
 
 
 def examine(
-    name: str = typer.Argument(..., help="Name of the project to examine"),
+    name: str = typer.Argument(
+        ..., 
+        help="Name of the project to examine",
+        autocompletion=complete_datasets,
+    ),
 ) -> None:
+
     config = load_config()
     project_dir = get_projects_dir() / name
 
@@ -28,12 +35,14 @@ def examine(
             f"Project directory does not exist: {project_dir}"
         )
 
-    images_dir = project_dir / "data" / "processed" / "images"
+    category_config = get_category_config("images")
+    images_dir = project_dir / category_config["destination"]
     logs_dir = get_logs_dir(project_dir=project_dir, config=config)
     manifests_dir = get_manifests_dir(
         project_dir=project_dir,
         config=config,
     )
+    output_dir = manifests_dir / "examine"
 
     # 1. Examine OME-TIFF metadata if TIFF images exist.
     tiff_files = []
@@ -48,9 +57,8 @@ def examine(
     if tiff_files:
         ome_report = examine_ome_metadata(
             input_dir=images_dir,
-            output_dir=manifests_dir,
+            output_dir=output_dir,
             logs_dir=logs_dir,
-            rules_path=Path("configs/imc_curator_ome_parser_config.toml"),
         )
         print(ome_report)
     else:
@@ -60,7 +68,7 @@ def examine(
         )
 
     # 2. Examine marker and clinical tables.
-    csv_report = examine_marker_and_clinical_tables(project_dir)
+    csv_report = examine_marker_and_clinical_tables(project_dir, output_dir=output_dir)
     print(csv_report)
 
     # 3. Examine populated MCD files, if the parser is available.
@@ -73,6 +81,6 @@ def examine(
     else:
         mcd_report = examine_mcd_files(
             project_dir=project_dir,
-            output_dir=manifests_dir,
+            output_dir=output_dir,
         )
         print(mcd_report)

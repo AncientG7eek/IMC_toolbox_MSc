@@ -17,7 +17,7 @@ def write_manifest(
         project_dir=project_dir,
         config=CONFIG,
     )
-    manifest_path = manifests_dir / "manifest.toml"
+    manifest_path = manifests_dir / "inspect" / "manifest.toml"
 
     lines = [
         "# IMC Curator project manifest",

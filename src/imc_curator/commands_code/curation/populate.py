@@ -4,7 +4,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 from zipfile import BadZipFile, ZipFile
 
-from imc_curator.config import load_search_config
+from imc_curator.config import load_search_config, get_category_config
 
 
 SEARCH_CONFIG = load_search_config()
@@ -74,9 +74,54 @@ def materialize_archive_member(
 
     return destination
 
+def _build_destination_names(relative_paths: list[str]) -> dict[str, str]:
+    """Generate unique flat destination filenames from source paths."""
+    paths = {
+        path: PurePosixPath(path.replace("::", "/"))
+        for path in relative_paths
+    }
 
-def get_category_config(category: str) -> dict:
-    return SEARCH_CONFIG["categories"][category]
+    # Group source paths by their original filename.
+    paths_by_name: dict[str, list[str]] = {}
+
+    for relative_path, source_path in paths.items():
+        paths_by_name.setdefault(source_path.name, []).append(relative_path)
+
+    destination_names: dict[str, str] = {}
+    used_names: set[str] = set()
+
+    for filename in sorted(paths_by_name):
+        source_paths = sorted(paths_by_name[filename])
+
+        for relative_path in source_paths:
+            source_path = paths[relative_path]
+
+            if len(source_paths) == 1 and filename not in used_names:
+                destination_name = filename
+            else:
+                parent_parts = source_path.parent.parts
+                destination_name = ""
+
+                # Start with the nearest parent directory.
+                for depth in range(1, len(parent_parts) + 1):
+                    prefix = "_".join(parent_parts[-depth:])
+                    candidate = f"{prefix}_{filename}"
+
+                    if candidate not in used_names:
+                        destination_name = candidate
+                        break
+
+                # Fallback for paths that still produce identical names.
+                if not destination_name:
+                    digest = hashlib.sha1(
+                        relative_path.encode("utf-8")
+                    ).hexdigest()[:8]
+                    destination_name = f"{digest}_{filename}"
+
+            destination_names[relative_path] = destination_name
+            used_names.add(destination_name)
+
+    return destination_names
 
 
 def materialize_category(
@@ -91,6 +136,13 @@ def materialize_category(
 
     # Create the category directory even when no files were selected.
     destination_dir.mkdir(parents=True, exist_ok=True)
+
+    relative_paths = [
+        entry["path"] if isinstance(entry, dict) else entry
+        for entry in entries
+    ]
+
+    destination_names = _build_destination_names(relative_paths)
 
     for entry in entries:
         if isinstance(entry, dict):
@@ -126,7 +178,7 @@ def materialize_category(
             if not archive.is_file():
                 raise RuntimeError(f"ZIP archive does not exist: {archive}")
 
-            target = destination_dir / PurePosixPath(member_path).name
+            target = destination_dir / destination_names[relative_path]
 
             materialize_archive_member(
                 archive=archive,
@@ -142,7 +194,7 @@ def materialize_category(
         if not source.exists():
             raise RuntimeError(f"Input does not exist: {source}")
 
-        target = destination_dir / source.name
+        target = destination_dir / destination_names[relative_path]
 
         if source.is_dir():
             materialize_directory(source, target)
