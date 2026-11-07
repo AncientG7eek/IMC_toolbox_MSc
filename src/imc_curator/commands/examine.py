@@ -1,6 +1,5 @@
 
 from pathlib import Path
-
 import typer
 
 from imc_curator.commands_code.discovery.examine.ome_parser import (
@@ -8,6 +7,9 @@ from imc_curator.commands_code.discovery.examine.ome_parser import (
 )
 from imc_curator.commands_code.discovery.examine.csv_parser import (
     examine_marker_and_clinical_tables,
+)
+from imc_curator.commands_code.discovery.examine.mcd_parser import (
+    examine_mcd_files
 )
 from imc_curator.config import (
     get_projects_dir,
@@ -17,6 +19,7 @@ from imc_curator.config import (
     load_config,
 )
 from imc_curator.completion import complete_datasets
+from imc_curator.progress_bar import ProgressManager
 
 
 def examine(
@@ -29,15 +32,13 @@ def examine(
 
     config = load_config()
     project_dir = get_projects_dir() / name
+    logs_dir = get_logs_dir(project_dir=project_dir, config=config)
 
     if not project_dir.is_dir():
         raise typer.BadParameter(
             f"Project directory does not exist: {project_dir}"
         )
 
-    category_config = get_category_config("images")
-    images_dir = project_dir / category_config["destination"]
-    logs_dir = get_logs_dir(project_dir=project_dir, config=config)
     manifests_dir = get_manifests_dir(
         project_dir=project_dir,
         config=config,
@@ -45,42 +46,47 @@ def examine(
     output_dir = manifests_dir / "examine"
 
     # 1. Examine OME-TIFF metadata if TIFF images exist.
-    tiff_files = []
+    images_config = get_category_config("images")
+    images_dir = project_dir / images_config["destination"]
+
     if images_dir.is_dir():
         tiff_files = [
             path
             for path in images_dir.rglob("*")
             if path.is_file()
-            and path.suffix.lower() in {".tif", ".tiff"}
+            and path.suffix.lower() in images_config["extensions"]
         ]
-
-    if tiff_files:
-        ome_report = examine_ome_metadata(
-            input_dir=images_dir,
-            output_dir=output_dir,
-            logs_dir=logs_dir,
-        )
-        print(ome_report)
     else:
-        print(
-            "OME-TIFF examination skipped: "
-            f"no TIFF images found in {images_dir}"
-        )
+        tiff_files = []
 
-    # 2. Examine marker and clinical tables.
-    csv_report = examine_marker_and_clinical_tables(project_dir, output_dir=output_dir)
-    print(csv_report)
+    with ProgressManager() as progress:
 
-    # 3. Examine populated MCD files, if the parser is available.
-    try:
-        from imc_curator.commands_code.discovery.examine.mcd_parser import (
-            examine_mcd_files,
-        )
-    except ImportError:
-        print("MCD examination skipped: MCD parser is not available.")
-    else:
+        if tiff_files:
+            ome_report = examine_ome_metadata(
+                input_dir=images_dir,
+                output_dir=output_dir,
+                logs_dir=logs_dir,
+                progress=progress,
+            )
+            typer.echo(ome_report)
+        else:
+            print(
+                "OME-TIFF examination skipped: "
+                f"no TIFF images found in {images_dir}"
+            )
+
+        # 2. Examine marker and clinical tables.
+        with progress.stage("Examining marker and clinical tables"):
+            csv_report = examine_marker_and_clinical_tables(
+                project_dir, 
+                output_dir=output_dir,
+            )
+        typer.echo(csv_report)
+
+        # 3. Examine populated MCD files, if the parser is available.
         mcd_report = examine_mcd_files(
             project_dir=project_dir,
             output_dir=output_dir,
+            progress=progress,
         )
-        print(mcd_report)
+        typer.echo(mcd_report)

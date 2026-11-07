@@ -2,12 +2,11 @@
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 import shutil
+import hashlib
 from zipfile import BadZipFile, ZipFile
+from rich.progress import Progress, TaskID
 
-from imc_curator.config import load_search_config, get_category_config
-
-
-SEARCH_CONFIG = load_search_config()
+from imc_curator.config import get_category_config
 
 
 def materialize_file(source: Path, destination: Path) -> Path:
@@ -129,6 +128,8 @@ def materialize_category(
     raw_dir: Path,
     category: str,
     entries: list[dict],
+    progress: Progress,
+    task_id: TaskID,    
 ) -> None:
     """Materialize approved inputs into their configured category."""
     config = get_category_config(category)
@@ -138,42 +139,33 @@ def materialize_category(
     destination_dir.mkdir(parents=True, exist_ok=True)
 
     relative_paths = [
-        entry["path"] if isinstance(entry, dict) else entry
-        for entry in entries
+        entry["path"] for entry in entries
     ]
 
     destination_names = _build_destination_names(relative_paths)
 
     for entry in entries:
-        if isinstance(entry, dict):
-            relative_path = entry["path"]
-            source_type = entry.get("source_type")
-            archive_path = entry.get("archive_path")
-            archive_chain = entry.get("archive_chain", [])
-            member_path = entry.get("member_path")
-        elif isinstance(entry, str):
-            relative_path = entry
-            source_type = None
-            archive_path = None
-            archive_chain = []
-            member_path = None
-        else:
-            raise ValueError(f"Unsupported manifest entry: {entry!r}")
+        
+        relative_path = entry["path"]
+        source_type = entry.get("source_type")
+        outer_archive_path = entry.get("outer_archive_path")
+        archive_chain = entry.get("archive_chain", [])
+        member_path = entry.get("member_path")
 
         # Handle regular and nested archive members.
         if source_type in {"archive_member", "nested_archive_member"} or "::" in relative_path:
-            if archive_path is None or member_path is None:
+            if outer_archive_path is None or member_path is None:
                 parts = relative_path.split("::")
                 if len(parts) < 2:
                     raise ValueError(
                         f"Archive entry is missing archive metadata: {entry!r}"
                     )
 
-                archive_path = parts[0]
+                outer_archive_path = parts[0]
                 archive_chain = parts[1:-1]
                 member_path = parts[-1]
 
-            archive = raw_dir / archive_path
+            archive = raw_dir / outer_archive_path
 
             if not archive.is_file():
                 raise RuntimeError(f"ZIP archive does not exist: {archive}")
@@ -186,17 +178,20 @@ def materialize_category(
                 destination=target,
                 archive_chain=archive_chain,
             )
-            continue
 
-        # Handle ordinary filesystem inputs.
-        source = raw_dir / relative_path
-
-        if not source.exists():
-            raise RuntimeError(f"Input does not exist: {source}")
-
-        target = destination_dir / destination_names[relative_path]
-
-        if source.is_dir():
-            materialize_directory(source, target)
         else:
-            materialize_file(source, target)
+
+            # Handle ordinary filesystem inputs.
+            source = raw_dir / relative_path
+
+            if not source.exists():
+                raise RuntimeError(f"Input does not exist: {source}")
+
+            target = destination_dir / destination_names[relative_path]
+
+            if source.is_dir():
+                materialize_directory(source, target)
+            else:
+                materialize_file(source, target)
+
+        progress.advance(task_id)

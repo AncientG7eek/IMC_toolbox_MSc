@@ -3,6 +3,17 @@ projects_dir = "data/cohorts"
 [project_file_system]
 processed_images_dir = "data/images/processed"
 
+[manifests]
+inspection = [
+    "inspection_manifest.toml"
+]
+examine = [
+    "clinical/clinical_form_*.toml",
+    "markers/assign_images_to_panels.toml",
+    "markers/panel/markers_form_*.toml",
+    "panel_manifests/panel_*.toml"
+]
+
 [curation]
 curation_manifests_subdir = "curation_manifests"
 global_marker_names_path = "configs/global_files/global_marker_names.csv"

@@ -1,4 +1,11 @@
 import typer
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from imc_curator.config import get_projects_dir, load_search_config
 from imc_curator.commands_code.discovery.populate.load_report import load_manifest
@@ -14,7 +21,7 @@ SEARCH_CATEGORIES = set(
 def populate(
     name: str = typer.Argument(
         ...,
-        help="Name of the cohort project to inspect.",
+        help="Name of the cohort project to populate.",
         autocompletion=complete_datasets,
     ),
 ) -> None:
@@ -22,42 +29,53 @@ def populate(
     projects_dir = get_projects_dir()
     project_dir = projects_dir / name
 
-    manifest = load_manifest(project_dir=project_dir, command="inspect")
-    inputs = manifest.get("inputs", {})
-
+    inputs = load_manifest(project_dir=project_dir, command="inspect")
+    
     raw_dir = project_dir / "data" / "raw" / "source"
 
-    if not isinstance(inputs, dict):
-        raise typer.BadParameter(
-            "The manifest's [inputs] section must be a table."
+    # Collect categories that actually need to be populated.
+    categories_to_populate = [
+        (category, entries)
+        for category, entries in inputs.items()
+        if category != "unclassified"
+        and category in SEARCH_CATEGORIES
+        and entries
+    ]
+
+    # Count the total number of entries.
+    total_files = sum(
+        len(entries)
+        for _, entries in categories_to_populate
+    )
+
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+    ) as progress:
+
+        task = progress.add_task(
+            "Populating project...",
+            total=total_files,
         )
-    
-    for category, entries in inputs.items():
-        if category == "unclassified" or not entries:
-            continue
 
-        if category not in SEARCH_CATEGORIES:
-            continue
+        for category, entries in inputs.items():
+            if category == "unclassified" or not entries:
+                continue
 
-        if not isinstance(entries, list):
-            raise typer.BadParameter(
-                f"Inputs for category {category!r} must be a list."
+            if category not in SEARCH_CATEGORIES:
+                continue
+                
+            materialize_category(
+                project_dir=project_dir,
+                raw_dir=raw_dir,
+                category=category,
+                entries=entries,
+                progress=progress,
+                task_id=task,
             )
-
-        for entry in entries:
-            if isinstance(entry, dict):
-                if not isinstance(entry.get("path"), str):
-                    raise typer.BadParameter(
-                        f"Manifest entry in {category!r} must have "
-                        "a string 'path' field."
-                    )
-
-        materialize_category(
-            project_dir=project_dir,
-            raw_dir=raw_dir,
-            category=category,
-            entries=entries,
-        )
 
     typer.echo(
         f"Successfully populated {name} project"

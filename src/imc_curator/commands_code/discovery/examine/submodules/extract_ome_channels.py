@@ -11,9 +11,9 @@ import csv
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
-
-
 import tifffile
+
+from imc_curator.progress_bar import ProgressManager
 
 
 TIFF_EXTENSIONS = {".tif", ".tiff"}
@@ -184,6 +184,7 @@ def extract_tiff_metadata(
 
 def extract_all_tiff_metadata(
     input_dir: Path,
+    progress: ProgressManager,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Extract raw OME channel metadata from every TIFF in a directory.
 
@@ -206,7 +207,11 @@ def extract_all_tiff_metadata(
     tiff_paths = discover_tiffs(input_dir)
     total = len(tiff_paths)
 
-    for index, tiff_path in enumerate(tiff_paths, start=1):
+    for tiff_path in progress.track(
+        tiff_paths,
+        description="Extracting OME metadata",
+        total=len(tiff_paths),
+    ):
         channels, scan_record = extract_tiff_metadata(
             tiff_path=tiff_path,
             root_dir=input_dir,
@@ -214,13 +219,6 @@ def extract_all_tiff_metadata(
 
         channel_records.extend(channels)
         scan_records.append(scan_record)
-
-        print(
-            f"[{index}/{total}] "
-            f"{scan_record['status']}: "
-            f"{scan_record['tiff_path']} "
-            f"({scan_record['channel_count']} channels)"
-        )
 
     return channel_records, scan_records
 

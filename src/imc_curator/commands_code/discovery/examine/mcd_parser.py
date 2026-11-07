@@ -7,6 +7,7 @@ from imc_curator.commands_code.discovery.examine.submodules.mcd_inspector import
     inspect_mcd,
 )
 from imc_curator.config import load_search_config
+from imc_curator.progress_bar import ProgressManager
 
 
 logger = logging.getLogger(__name__)
@@ -184,7 +185,11 @@ y_coordinate_column = ''
     )
 
 
-def examine_mcd_files(project_dir: Path, output_dir: Path) -> str:
+def examine_mcd_files(
+        project_dir: Path, 
+        output_dir: Path,
+        progress: ProgressManager,
+) -> str:
     """Examine populated MCD files and write an IMC manifest and review form."""
     project_dir = project_dir.resolve()
     output_dir = output_dir.resolve()
@@ -230,7 +235,11 @@ def examine_mcd_files(project_dir: Path, output_dir: Path) -> str:
     acquisition_count = 0
     readable_image_count = 0
 
-    for mcd_path in mcd_files:
+    for mcd_path in progress.track(
+        mcd_files,
+        description="Inspecting MCD files",
+        total=len(mcd_files),
+    ):
         try:
             records = inspect_mcd(mcd_path)
 

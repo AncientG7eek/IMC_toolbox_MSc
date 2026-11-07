@@ -309,7 +309,9 @@ def create_form(text: str, output_path: Path) -> Path:
 
 
 
-def examine_marker_and_clinical_tables(project_dir: Path, output_dir) -> str:
+def examine_marker_and_clinical_tables(
+        project_dir: Path, 
+        output_dir: Path,) -> str:
     """
     Discover populated marker and clinical CSVs and generate review forms.
 

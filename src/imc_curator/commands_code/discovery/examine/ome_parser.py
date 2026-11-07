@@ -12,12 +12,14 @@ from imc_curator.commands_code.discovery.examine.submodules.ome_panel_parser imp
     parse_channel,
     write_panel_reports,
 )
+from imc_curator.progress_bar import ProgressManager
 
 
 def examine_ome_metadata(
     input_dir: Path,
     output_dir: Path,
     logs_dir: Path,
+    progress: ProgressManager,
 ) -> str:
     """Extract OME metadata, parse channel names, and identify candidate panels."""
     input_dir = input_dir.expanduser().resolve()
@@ -27,7 +29,11 @@ def examine_ome_metadata(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Extract raw OME metadata.
-    channels, scan_records = extract_all_tiff_metadata(input_dir)
+    with progress.stage("Extracting TIFF metadata from ome"):
+        channels, scan_records = extract_all_tiff_metadata(
+            input_dir,
+            progress=progress,
+        )
 
     scan_csv = write_csv(
         logs_dir / "tiff_metadata_scan.csv",
@@ -53,18 +59,24 @@ def examine_ome_metadata(
     rules = load_regex_rules()
     parsed_channels = [
         parse_channel(channel, rules)
-        for channel in channels
+        for channel in progress.track(
+            channels,
+            description="Parsing channel names",
+            total=len(channels),
+        )
     ]
 
     # 3. Group TIFFs by their parsed channel signatures.
-    panel_groups = assign_panels(parsed_channels)
+    with progress.stage("Identifying candidate panels"):
+        panel_groups = assign_panels(parsed_channels)
 
     # 4. Write parsed-channel and panel-manifest reports.
-    parsed_csv, manifest_paths = write_panel_reports(
-        parsed_channels=parsed_channels,
-        panel_groups=panel_groups,
-        output_dir=output_dir,
-    )
+    with progress.stage("Writing OME reports"):
+        parsed_csv, manifest_paths = write_panel_reports(
+            parsed_channels=parsed_channels,
+            panel_groups=panel_groups,
+            output_dir=output_dir,
+        )
 
     parsed_channel_count = sum(
         channel["parse_status"] == "parsed"

@@ -15,7 +15,6 @@ def init_project(
         "data/raw",
         "data/processed",
         "metadata",
-        "output",
     ]:
         (project_dir / directory).mkdir(parents=True)
 

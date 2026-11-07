@@ -1,6 +1,7 @@
 [archives]
 extensions = [".zip"]
 
+
 [categories.images]
 extensions = [".tif", ".tiff"]
 strong_positive_keywords = ["full", "stack"]
@@ -28,3 +29,10 @@ strong_positive_keywords = ["TMA", ".mcd"]
 weak_positive_keywords = []
 negative_keywords = []
 destination = "metadata/raw_imc_data"
+
+
+[limits]
+max_nested_zip_depth = 5
+max_nested_archive_size = 10 #GB
+max_total_uncompressed_size = 100 #GB
+max_archive_members = 100_000

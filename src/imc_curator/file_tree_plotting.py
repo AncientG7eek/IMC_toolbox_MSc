@@ -73,10 +73,10 @@ def parse_manifest_entry(entry: str | dict) -> dict:
 def get_path_parts(path_string: str) -> tuple[str, ...]:
     """Split a path into components, including ZIP archive members."""
     if "::" in path_string:
-        archive_path, member_path = path_string.split("::", 1)
+        outer_archive_path, member_path = path_string.split("::", 1)
 
         return (
-            *PurePosixPath(archive_path).parts,
+            *PurePosixPath(outer_archive_path).parts,
             *PurePosixPath(member_path).parts,
         )
 

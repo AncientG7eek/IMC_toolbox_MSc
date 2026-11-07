@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PurePath
 from dataclasses import dataclass, field
 import logging
 
@@ -11,7 +11,7 @@ class CategoryMatch:
 
 
 def classify_file(
-    path: Path,
+    path: PurePath,
     config: dict,
     logger: logging.Logger,
 ) -> CategoryMatch:
@@ -30,7 +30,6 @@ def classify_file(
             for extension in rules.get("extensions", [])
         }
 
-        # An extension mismatch makes the file ineligible for this category.
         if extensions and suffix not in extensions:
             score = -1 # Small punishment for a not matching extension.
             evidence = [f"extension not matched: {suffix}"]
