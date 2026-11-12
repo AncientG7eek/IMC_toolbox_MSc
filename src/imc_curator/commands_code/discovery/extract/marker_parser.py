@@ -1,6 +1,7 @@
 import re
 import tomllib
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from imc_curator.commands_code.discovery.signature import (
@@ -8,9 +9,23 @@ from imc_curator.commands_code.discovery.signature import (
     build_panel_signature,
     format_panel_signature,
 )
+from imc_curator.commands_code.discovery.extract.panel_map import (
+    append_panel_map_rows,
+    project_relative,
+    selected_panel_file,
+)
+
+if TYPE_CHECKING:
+    from imc_curator.progress_bar import ProgressManager
 
 
 REVIEW_COLUMN = "KEEP/REJECT [0/1]"
+
+PANEL_COLUMNS = [
+    "biological_marker",
+    "channel_number",
+    "metal_isotope",
+]
 
 
 def _resolve_path(path: str, project_dir: Path) -> Path:
@@ -54,10 +69,19 @@ def _read_form(form_path: Path) -> dict:
         return tomllib.load(form_file)
 
 
+def _scalar(value: object) -> object:
+    """Convert pandas NA values to plain empty strings for CSV output."""
+    if pd.isna(value):
+        return ""
+    return value
+
+
 def extract_marker_tables(
     project_dir: Path,
     forms_dir: Path,
-    output_dir: Path,
+    selected_panels_dir: Path | None = None,
+    panel_map_path: Path | None = None,
+    progress: "ProgressManager | None" = None,
 ) -> str:
     """
     Parse marker-panel tables using their completed TOML forms
@@ -65,13 +89,33 @@ def extract_marker_tables(
     """
     project_dir = project_dir.resolve()
     forms_dir = _resolve_path(str(forms_dir), project_dir)
-    output_dir = _resolve_path(str(output_dir), project_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if selected_panels_dir is not None:
+        selected_panels_dir = _resolve_path(
+            str(selected_panels_dir),
+            project_dir,
+        )
+        selected_panels_dir.mkdir(parents=True, exist_ok=True)
+    if panel_map_path is not None:
+        panel_map_path = _resolve_path(str(panel_map_path), project_dir)
 
-    form_paths = sorted(forms_dir.glob("*.toml"))
+    form_paths = sorted(forms_dir.glob("*/*.toml"))
 
     if not form_paths:
         return f"No marker TOML forms found in:\n  {forms_dir}"
+
+    assignments_path = forms_dir / "assign_images_to_panels.toml"
+    images_by_marker: dict[str, list[str]] = {}
+    if assignments_path.is_file():
+        assignments = _read_form(assignments_path)
+        raw_mapping = assignments.get("images_by_marker", {})
+        if isinstance(raw_mapping, dict):
+            images_by_marker = {
+                str(marker_file): [
+                    str(image_path)
+                    for image_path in image_paths
+                ]
+                for marker_file, image_paths in raw_mapping.items()
+            }
 
     reports = [
         "",
@@ -79,9 +123,19 @@ def extract_marker_tables(
         f"Found {len(form_paths)} marker form(s):",
     ]
 
-    for form_path in form_paths:
-        form = _read_form(form_path)
+    form_iterable = (
+        progress.track(
+            form_paths,
+            description="Parsing marker forms",
+            total=len(form_paths),
+            item_description=lambda path: path.name,
+        )
+        if progress
+        else form_paths
+    )
 
+    for form_path in form_iterable:
+        form = _read_form(form_path)
         source_config = form.get("source", {})
         parsing_config = form.get("marker_parsing", {})
 
@@ -107,11 +161,6 @@ def extract_marker_tables(
             "metal_isotope_regex", ""
         )
 
-        if not marker_column:
-            raise ValueError(
-                f"{form_path}: biological_marker_column is required."
-            )
-
         if not review_csv.is_file():
             raise FileNotFoundError(
                 f"Review CSV specified by {form_path} was not found:\n"
@@ -119,6 +168,18 @@ def extract_marker_tables(
             )
 
         marker_table = pd.read_csv(review_csv)
+
+        if not marker_column and "biological_marker" in marker_table.columns:
+            marker_column = "biological_marker"
+        if not channel_column and "channel_number" in marker_table.columns:
+            channel_column = "channel_number"
+        if not metal_column and "metal_isotope" in marker_table.columns:
+            metal_column = "metal_isotope"
+
+        if not marker_column:
+            raise ValueError(
+                f"{form_path}: biological_marker_column is required."
+            )
 
         if marker_column not in marker_table.columns:
             raise ValueError(
@@ -175,7 +236,7 @@ def extract_marker_tables(
             parsed_table["channel_number"] = parsed_table[channel_column]
         else:
             # Generate channel numbers from the original table row positions.
-            # First data row -> 0, second data row -> 1, etc.
+            # First data row -> 1, second data row -> 2, etc.
             parsed_table["channel_number"] = (
                 parsed_table.index - marker_table.index.min()
             )
@@ -221,11 +282,52 @@ def extract_marker_tables(
             parsed_table["panel_id"] = panel_id
             parsed_table["panel_signature"] = panel_signature
 
-        output_path = (
-            output_dir / f"{form_path.stem.removesuffix('_form')}_parsed.csv"
-        )
+        if selected_panels_dir is not None and not parsed_table.empty:
+            panel_rows = []
+            for _, row in parsed_table.iterrows():
+                marker = _scalar(row.get("biological_marker", ""))
+                panel_rows.append(
+                    {
+                        "biological_marker": marker,
+                        "channel_number": _scalar(
+                            row.get("channel_number", "")
+                        ),
+                        "metal_isotope": _scalar(
+                            row.get("metal_isotope", "")
+                        ),
+                    }
+                )
 
-        parsed_table.to_csv(output_path, index=False)
+            panel_path = selected_panels_dir / f"{panel_id}.csv"
+            pd.DataFrame(panel_rows, columns=PANEL_COLUMNS).to_csv(
+                panel_path,
+                index=False,
+            )
+
+            if panel_map_path is not None:
+                source_key = f"{form_path.parent.name}.csv"
+                image_paths = images_by_marker.get(source_key, [])
+                map_rows = []
+
+                for image_path in image_paths:
+                    map_rows.append(
+                        {
+                            "tiff_file": project_relative(
+                                image_path,
+                                project_dir,
+                            ),
+                            "panel_id": panel_id,
+                            "panel_signature": panel_signature,
+                            "panel_file": selected_panel_file(
+                                selected_panels_dir,
+                                panel_id,
+                                project_dir,
+                            ),
+                        }
+                    )
+
+                if map_rows:
+                    append_panel_map_rows(panel_map_path, map_rows)
 
         reports.extend(
             [
@@ -233,8 +335,11 @@ def extract_marker_tables(
                 f"Review CSV: {review_csv.resolve()}",
                 f"Markers retained: {len(parsed_table)}",
                 f"Markers rejected: {(decisions == 0).sum()}",
-                f"Parsed output: {output_path.resolve()}",
             ]
         )
+        if selected_panels_dir is not None and not parsed_table.empty:
+            reports.append(f"Selected panel: {panel_path.resolve()}")
+        if panel_map_path is not None and not parsed_table.empty:
+            reports.append(f"Images mapped: {len(image_paths)}")
 
     return "\n".join(reports)

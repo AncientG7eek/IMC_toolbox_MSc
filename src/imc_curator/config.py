@@ -208,3 +208,11 @@ def get_logs_dir(project_dir: Path, config: dict) -> Path:
 def get_processed_images_dir(project_dir: Path, config: dict) -> Path:
     return project_dir / config["project_file_system"]["processed_images_dir"]
 
+def get_unpacked_images_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["project_file_system"]["unpacked_images_dir"]
+
+def get_selected_images_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["project_file_system"]["selected_images_dir"]
+
+def get_panels_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["project_file_system"]["panels_dir"]

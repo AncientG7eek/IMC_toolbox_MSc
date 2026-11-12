@@ -17,4 +17,11 @@ id = "ome_isotope_marker_v1"
 description = "Isotope prefix followed by marker name"
 source = "raw_name"
 pattern = '^(?P<metal_ion>\d{2,3}[A-Z][a-z]?)_(?P<biological_marker>.+)$'
+enabled = false
+
+[[rules]]
+id = "mcd_doubleparen_suffix_v1"
+description = "MCD marker followed by numeric code, double-paren code, and isotope suffix"
+source = "raw_fluor"
+pattern = '^(?P<biological_marker>.+?)_\d+\(\(\d+\)\)(?P<metal_ion>[A-Z][a-z]?\d{2,3})$'
 enabled = true

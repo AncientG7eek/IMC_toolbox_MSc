@@ -7,14 +7,14 @@ CONFIG = load_config()
 
 def get_action_logger(
     project_dir: Path,
+    command: str,
     action: str,
     *,
     level: int = logging.DEBUG,
 ) -> logging.Logger:
     """Create a logger that writes to this project's action log."""
 
-    logs_subdir = get_logs_dir(project_dir=project_dir, config=CONFIG)
-    log_dir = project_dir / logs_subdir
+    log_dir = get_logs_dir(project_dir=project_dir, config=CONFIG)
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logger = logging.getLogger(f"imc_curator.{action}")
@@ -22,7 +22,8 @@ def get_action_logger(
     logger.propagate = False
 
     # Avoid adding duplicate handlers if this logger is reused.
-    log_path = (log_dir / f"{action}.log").resolve()
+    log_path = (log_dir / command / f"{action}.log").resolve()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     for handler in logger.handlers[:]:
         if (

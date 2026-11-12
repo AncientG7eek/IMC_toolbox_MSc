@@ -7,14 +7,14 @@ extensions = [".tif", ".tiff"]
 strong_positive_keywords = ["full", "stack"]
 weak_positive_keywords = ["ROI"]
 negative_keywords = ["mask", "exclucion", ".pdf", ".csv"]
-destination = "data/images/unpacked"
+destination = "data/raw/unpacked"
 
 [categories.marker_metadata]
 extensions = [".csv", ".tsv", ".xls", ".xlsx"]
 strong_positive_keywords = ["marker", "panel", "channel"]
 weak_positive_keywords = []
 negative_keywords = ["clinical", "patient", "donor"]
-destination = "metadata/markers"
+destination = "metadata/markers/unpacked"
 
 [categories.clinical_data]
 extensions = [".csv", ".docx", ".pdf", ".xls", ".xlsx"]

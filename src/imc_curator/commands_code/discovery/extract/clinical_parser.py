@@ -1,8 +1,12 @@
 import re
 import tomllib
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from imc_curator.progress_bar import ProgressManager
 
 
 IMAGE_EXTENSIONS = {".tif", ".tiff"}
@@ -29,6 +33,9 @@ def _extract_id(value: object, pattern: str) -> str | None:
     if pd.isna(value):
         return None
 
+    if not str(pattern).strip():
+        return str(value)
+
     match = re.search(pattern, str(value))
 
     if match is None:
@@ -44,6 +51,7 @@ def extract_clinical_tables(
     project_dir: Path,
     forms_dir: Path,
     output_dir: Path,
+    progress: "ProgressManager | None" = None,
 ) -> str:
     """
     Select clinical features and match clinical records to image names
@@ -54,7 +62,7 @@ def extract_clinical_tables(
     output_dir = _resolve_path(str(output_dir), project_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    images_dir = project_dir / "data" / "processed" / "images"
+    images_dir = project_dir / "data" / "raw" / "unpacked"
 
     form_paths = sorted(forms_dir.glob("*.toml"))
 
@@ -86,7 +94,18 @@ def extract_clinical_tables(
         f"Images to match: {len(image_paths)}",
     ]
 
-    for form_path in form_paths:
+    form_iterable = (
+        progress.track(
+            form_paths,
+            description="Parsing clinical forms",
+            total=len(form_paths),
+            item_description=lambda path: path.name,
+        )
+        if progress
+        else form_paths
+    )
+
+    for form_path in form_iterable:
         form = _read_form(form_path)
 
         source_config = form.get("source", {})
@@ -117,10 +136,9 @@ def extract_clinical_tables(
                 f"{form_path}: identifier_column is required."
             )
 
-        if not image_name_regex or not id_value_regex:
+        if not image_name_regex:
             raise ValueError(
-                f"{form_path}: both image_name_regex and "
-                "id_value_regex are required."
+                f"{form_path}: image_name_regex is required."
             )
 
         # Validate regex syntax before processing the data.
@@ -225,7 +243,7 @@ def extract_clinical_tables(
 
         for image_path in image_paths:
             image_id = _extract_id(
-                image_path.name,
+                image_path,
                 image_name_regex,
             )
 

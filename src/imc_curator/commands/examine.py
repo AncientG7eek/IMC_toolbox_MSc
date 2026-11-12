@@ -66,6 +66,8 @@ def examine(
                 input_dir=images_dir,
                 output_dir=output_dir,
                 logs_dir=logs_dir,
+                project_dir=project_dir,
+                markers_output_dir=output_dir / "markers",
                 progress=progress,
             )
             typer.echo(ome_report)
@@ -75,18 +77,20 @@ def examine(
                 f"no TIFF images found in {images_dir}"
             )
 
-        # 2. Examine marker and clinical tables.
-        with progress.stage("Examining marker and clinical tables"):
-            csv_report = examine_marker_and_clinical_tables(
-                project_dir, 
-                output_dir=output_dir,
-            )
-        typer.echo(csv_report)
-
-        # 3. Examine populated MCD files, if the parser is available.
+        # 2. Examine populated MCD files, if the parser is available.
         mcd_report = examine_mcd_files(
             project_dir=project_dir,
             output_dir=output_dir,
+            markers_output_dir=output_dir / "markers",
+            logs_dir=logs_dir,
             progress=progress,
         )
         typer.echo(mcd_report)
+
+        # 3. Examine marker and clinical tables.
+        with progress.stage("Examining marker and clinical tables"):
+            csv_report = examine_marker_and_clinical_tables(
+                project_dir,
+                output_dir=output_dir,
+            )
+        typer.echo(csv_report)

@@ -8,8 +8,8 @@ import typer
 from imc_curator.config import get_projects_dir, load_config
 
 
-MARKER_MANIFEST = "marker_mapping_review.csv"
-CLINICAL_MANIFEST = "clinical_mapping_review.csv"
+MARKER_MANIFEST_SUFFIX = "marker_mapping_review.csv"
+CLINICAL_MANIFEST_SUFFIX = "clinical_mapping_review.csv"
 
 CLINICAL_COLUMNS = [
     "Standardized Feature",
@@ -365,7 +365,7 @@ def _rows_for_panel(
         (path, rows)
         for path, rows in marker_sources
         if path.parent == path.parents[0]
-        and path.name == MARKER_MANIFEST
+        and path.name.endswith(MARKER_MANIFEST_SUFFIX)
     ]
     if len(legacy_manifests) == 1:
         return legacy_candidates
@@ -471,20 +471,16 @@ def finalizer(
     if not project_dir.is_dir():
         raise FileNotFoundError(f"Project directory not found: {project_dir}")
 
-    
-    marker_manifests = discover_manifests(curate_dir, MARKER_MANIFEST)
-    clinical_manifests = discover_manifests(curate_dir, CLINICAL_MANIFEST)
-
-    # Also support descriptive per-panel/per-table filenames.
-    if not marker_manifests:
-        marker_dir = curate_dir / "markers"
-        if marker_dir.is_dir():
-            marker_manifests = sorted(marker_dir.glob("*mapping_review.csv"))
-
-    if not clinical_manifests:
-        clinical_dir = curate_dir / "clinical"
-        if clinical_dir.is_dir():
-            clinical_manifests = sorted(clinical_dir.glob("*mapping_review.csv"))
+    marker_manifests_dir = curate_dir / "markers"
+    clinical_manifests_dir = curate_dir / "clinical"
+    marker_manifests = discover_manifests(
+        marker_manifests_dir, 
+        MARKER_MANIFEST_SUFFIX,
+    )
+    clinical_manifests = discover_manifests(
+        clinical_manifests_dir, 
+        CLINICAL_MANIFEST_SUFFIX,
+    )
 
     if not marker_manifests:
         raise FileNotFoundError(

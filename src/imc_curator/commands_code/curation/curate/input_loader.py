@@ -63,9 +63,7 @@ def load_extracted_markers(
         project_dir = get_projects_dir() / project_dir
     project_dir = project_dir.resolve()
 
-    marker_dir = (
-        project_dir / "curation_manifests" / "extract" / "markers"
-    )
+    marker_dir = project_dir / "metadata" / "markers" / "selected"
     marker_files = sorted(
         marker_dir.glob("*.csv"),
         key=lambda path: path.name.casefold(),
@@ -73,7 +71,7 @@ def load_extracted_markers(
 
     if not marker_files:
         raise FileNotFoundError(
-            f"No parsed marker tables found in {marker_dir}"
+            f"No selected panel tables found in {marker_dir}"
         )
 
     bundles: list[dict[str, Any]] = []

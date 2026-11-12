@@ -8,13 +8,14 @@ Unmatched channel names are retained and marked for review.
 from __future__ import annotations
 
 import csv
-import re
 import tomli_w
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from imc_curator.config import load_ome_parser_config
+from imc_curator.commands_code.discovery.channel_parser_rules import (
+    load_channel_parser_rules,
+)
 from imc_curator.commands_code.discovery.signature import (
     build_panel_id,
     build_panel_signature,
@@ -22,20 +23,18 @@ from imc_curator.commands_code.discovery.signature import (
 )
 
 
-PARSED_CHANNEL_COLUMNS = [
+IMAGE_PANEL_COLUMNS = [
     "tiff_path",
     "image_name",
     "image_id",
-    "channel_number",
-    "channel_id",
-    "raw_name",
-    "raw_fluor",
-    "biological_marker",
-    "metal_ion",
-    "parser_rule_id",
-    "parse_status",
     "panel_id",
     "panel_signature",
+]
+
+PANEL_CHANNEL_COLUMNS = [
+    "biological_marker",
+    "channel_number",
+    "metal_isotope",
 ]
 
 MANIFEST_VERSION = 1
@@ -52,66 +51,9 @@ def load_regex_rules() -> list[dict[str, Any]]:
         pattern = '^(?P<biological_marker>.*?)\\s*\\((?P<metal_ion>[^()]+)\\)\\s*$'
         enabled = true
     """
-    config = load_ome_parser_config()
-
-    configured_rules = config.get("rules", [])
-    if not isinstance(configured_rules, list):
-        raise ValueError("The rules TOML must contain an array of [[rules]] tables.")
-
-    rules: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-
-    for index, rule in enumerate(configured_rules, start=1):
-        if not isinstance(rule, dict):
-            raise ValueError(f"Rule {index} must be a TOML table.")
-
-        if not rule.get("enabled", True):
-            continue
-
-        rule_id = rule.get("id")
-        pattern = rule.get("pattern")
-        source = rule.get("source", "raw_name")
-
-        if not isinstance(rule_id, str) or not rule_id.strip():
-            raise ValueError(f"Enabled rule {index} must have a non-empty 'id'.")
-        if rule_id in seen_ids:
-            raise ValueError(f"Duplicate OME parser rule id: {rule_id}")
-        if not isinstance(pattern, str) or not pattern:
-            raise ValueError(f"Enabled rule {rule_id!r} must have a non-empty pattern.")
-        if source not in {"raw_name", "raw_fluor"}:
-            raise ValueError(
-                f"Rule {rule_id!r} has unsupported source {source!r}; "
-                "use 'raw_name' or 'raw_fluor'."
-            )
-
-        try:
-            compiled_pattern = re.compile(pattern)
-        except re.error as exc:
-            raise ValueError(
-                f"Invalid regex in OME parser rule {rule_id!r}: {exc}"
-            ) from exc
-
-        group_names = compiled_pattern.groupindex
-        missing_groups = {
-            "biological_marker",
-            "metal_ion",
-        } - set(group_names)
-        if missing_groups:
-            raise ValueError(
-                f"Rule {rule_id!r} must define named capture groups: "
-                f"{', '.join(sorted(missing_groups))}"
-            )
-
-        rules.append({
-            "id": rule_id,
-            "description": str(rule.get("description", "")),
-            "source": source,
-            "pattern": pattern,
-            "compiled_pattern": compiled_pattern,
-        })
-        seen_ids.add(rule_id)
-
-    return rules
+    return load_channel_parser_rules(
+        required_groups={"biological_marker", "metal_ion"},
+    )
 
 
 def parse_channel(
@@ -124,11 +66,17 @@ def parse_channel(
     Matching is attempted in the order rules appear in the TOML file.
     """
     parsed = dict(channel)
+    raw_name = str(parsed.get("raw_name") or "").strip()
+    raw_fluor = str(parsed.get("raw_fluor") or "").strip()
+    display_marker = raw_name or raw_fluor or "unnamed"
+
     parsed.update({
         "biological_marker": "",
         "metal_ion": "",
         "parser_rule_id": "",
         "parse_status": "needs_review",
+        "panel_marker": display_marker,
+        "signature_marker": f"unparsed:{display_marker}",
     })
 
     for rule in rules:
@@ -156,6 +104,8 @@ def parse_channel(
             "metal_ion": metal,
             "parser_rule_id": rule["id"],
             "parse_status": "parsed",
+            "panel_marker": marker,
+            "signature_marker": marker,
         })
         break
 
@@ -215,7 +165,7 @@ def assign_panels(
         tiff_channels_sorted[path] = ordered
         tiff_signatures[path] = build_panel_signature(
             ordered,
-            marker_key="biological_marker",
+            marker_key="signature_marker",
             raw_name_key="raw_name",
             raw_fluor_key="raw_fluor",
             channel_sort_key=_channel_sort_key,
@@ -281,36 +231,41 @@ def _csv_safe(value: Any) -> Any:
     return value
 
 
-def write_parsed_channel_csv(
+def write_image_panel_csv(
     output_path: Path,
     parsed_channels: list[dict[str, Any]],
     panel_by_tiff: dict[str, str] | None = None,
     signature_by_tiff: dict[str, str] | None = None,
 ) -> Path:
-    """Write parsed channel records, optionally including panel assignments."""
+    """Write one row per image with its assigned panel."""
     output_path = output_path.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     panel_by_tiff = panel_by_tiff or {}
     signature_by_tiff = signature_by_tiff or {}
 
+    image_rows: dict[str, dict[str, Any]] = {}
+    for source_record in parsed_channels:
+        path = str(source_record.get("tiff_path", ""))
+        if not path or path in image_rows:
+            continue
+
+        image_rows[path] = {
+            "tiff_path": path,
+            "image_name": _csv_safe(source_record.get("image_name", "")),
+            "image_id": _csv_safe(source_record.get("image_id", "")),
+            "panel_id": panel_by_tiff.get(path, ""),
+            "panel_signature": signature_by_tiff.get(path, ""),
+        }
+
     with output_path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.DictWriter(
             file,
-            fieldnames=PARSED_CHANNEL_COLUMNS,
-            extrasaction="ignore",
+            fieldnames=IMAGE_PANEL_COLUMNS,
         )
         writer.writeheader()
-
-        for source_record in parsed_channels:
-            record = dict(source_record)
-            path = str(record.get("tiff_path", ""))
-            record["panel_id"] = panel_by_tiff.get(path, "")
-            record["panel_signature"] = signature_by_tiff.get(path, "")
-            writer.writerow({
-                key: _csv_safe(record.get(key, ""))
-                for key in PARSED_CHANNEL_COLUMNS
-            })
+        for path in sorted(image_rows, key=str.casefold):
+            writer.writerow(image_rows[path])
 
     return output_path
 
@@ -352,6 +307,56 @@ def _build_panel_manifest(group: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _build_panel_channel_rows(
+    group: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Build editable channel/marker rows for one unique OME panel."""
+    rows = []
+
+    for channel in group["channels"]:
+        raw_name = str(channel.get("raw_name") or "").strip()
+        raw_fluor = str(channel.get("raw_fluor") or "").strip()
+        biological_marker = str(
+            channel.get("biological_marker") or ""
+        ).strip()
+        marker = (
+            str(channel.get("panel_marker") or "").strip()
+            or biological_marker
+            or raw_name
+            or raw_fluor
+        )
+
+        rows.append({
+            "biological_marker": marker,
+            "channel_number": channel.get("channel_number", ""),
+            "metal_isotope": str(channel.get("metal_ion") or "").strip(),
+        })
+
+    return rows
+
+
+def _write_panel_channel_csv(
+    output_path: Path,
+    group: dict[str, Any],
+) -> Path:
+    """Write one editable CSV containing the channels in a unique panel."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open(
+        "w",
+        encoding="utf-8-sig",
+        newline="",
+    ) as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=PANEL_CHANNEL_COLUMNS,
+        )
+        writer.writeheader()
+        writer.writerows(_build_panel_channel_rows(group))
+
+    return output_path.resolve()
+
+
 def _toml_value(value: Any) -> int | float | str | bool:
     """Return a TOML-supported scalar, avoiding unsupported None values."""
     if value is None:
@@ -365,14 +370,17 @@ def write_panel_reports(
     parsed_channels: list[dict[str, Any]],
     panel_groups: dict[str, dict[str, Any]],
     output_dir: Path,
-) -> tuple[Path, list[Path]]:
-    """Write parsed-channel CSV and one TOML manifest per candidate panel.
+    panels_dir: Path,
+) -> tuple[Path, list[Path], list[Path]]:
+    """Write parsed channels plus one CSV and manifest per candidate panel.
 
     Panel IDs are generated by ``assign_panels`` and reused unchanged in both
     output formats. The returned paths are absolute paths.
     """
     output_dir = output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    panels_dir = panels_dir.expanduser().resolve()
+    panels_dir.mkdir(parents=True, exist_ok=True)
 
     panel_by_tiff: dict[str, str] = {}
     signature_by_tiff: dict[str, str] = {}
@@ -384,7 +392,7 @@ def write_panel_reports(
             panel_by_tiff[path] = panel_id
             signature_by_tiff[path] = signature_text
 
-    parsed_csv = write_parsed_channel_csv(
+    parsed_csv = write_image_panel_csv(
         output_dir / "parsed_ome_channels.csv",
         parsed_channels,
         panel_by_tiff=panel_by_tiff,
@@ -393,13 +401,23 @@ def write_panel_reports(
 
     manifests_dir = output_dir / "panel_manifests"
     manifests_dir.mkdir(parents=True, exist_ok=True)
+    panel_csv_paths: list[Path] = []
     manifest_paths: list[Path] = []
 
     for panel_id in sorted(panel_groups):
-        manifest = _build_panel_manifest(panel_groups[panel_id])
+        panel_group = panel_groups[panel_id]
+
+        panel_csv_paths.append(
+            _write_panel_channel_csv(
+                panels_dir / f"{panel_id}.csv",
+                panel_group,
+            )
+        )
+
+        manifest = _build_panel_manifest(panel_group)
         manifest_path = manifests_dir / f"{panel_id}.toml"
         with manifest_path.open("wb") as file:
             file.write(tomli_w.dumps(manifest).encode("utf-8"))
         manifest_paths.append(manifest_path)
 
-    return parsed_csv, manifest_paths
+    return parsed_csv, panel_csv_paths, manifest_paths

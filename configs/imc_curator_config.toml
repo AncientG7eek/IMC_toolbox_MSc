@@ -1,7 +1,10 @@
 projects_dir = "data/cohorts"
 
 [project_file_system]
-processed_images_dir = "data/images/processed"
+unpacked_images_dir = "data/raw/unpacked"
+selected_images_dir = "data/raw/selected"
+processed_images_dir = "data/processed"
+panels_dir = "metadata/markers"
 
 [manifests]
 inspection = [

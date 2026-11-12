@@ -135,7 +135,7 @@ def extract_tiff_metadata(
                     # OME IDs often end in a zero-based index, but
                     # numbering here is intentionally human-readable
                     # and 1-based within this TIFF.
-                    channel_number = len(channel_records) + 1
+                    channel_number = len(channel_records)
 
                     channel_records.append({
                         "tiff_path": relative_path,

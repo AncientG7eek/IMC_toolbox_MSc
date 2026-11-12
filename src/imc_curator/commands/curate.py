@@ -32,7 +32,7 @@ def curate(
         )
 
     extract_dir = project_dir / "curation_manifests" / "extract"
-    marker_dir = extract_dir / "markers"
+    marker_dir = project_dir / "metadata" / "markers" / "selected"
     clinical_dir = extract_dir / "clinical"
 
     if not marker_dir.is_dir():
@@ -41,10 +41,10 @@ def curate(
             "Run extraction first."
         )
 
-    marker_files = sorted(marker_dir.glob("*_parsed.csv"))
+    marker_files = sorted(marker_dir.glob("*.csv"))
     if not marker_files:
         raise typer.BadParameter(
-            f"No parsed marker tables found in {marker_dir}. "
+            f"No selected panel tables found in {marker_dir}. "
             "Run extraction first."
         )
 

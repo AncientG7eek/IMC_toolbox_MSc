@@ -1,12 +1,30 @@
 
 import json
 import logging
+import re
 from pathlib import Path
+
+import pandas as pd
+import tomli_w
 
 from imc_curator.commands_code.discovery.examine.submodules.mcd_inspector import (
     inspect_mcd,
 )
-from imc_curator.config import load_search_config
+from imc_curator.commands_code.discovery.examine.submodules.panel_assignment import (
+    append_assignments,
+)
+from imc_curator.commands_code.discovery.examine.submodules.panel_review_form import (
+    create_panel_review,
+)
+from imc_curator.config import (
+    get_unpacked_images_dir,
+    load_config,
+    load_search_config,
+)
+from imc_curator.commands_code.discovery.signature import (
+    build_panel_id,
+    build_panel_signature,
+)
 from imc_curator.progress_bar import ProgressManager
 
 
@@ -46,71 +64,41 @@ def path_for_form(path: Path, project_dir: Path) -> str:
         return str(path)
 
 
+def _safe_stem(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._")
+    return cleaned or "unnamed"
+
+
 def create_mcd_review_form(
     *,
     output_dir: Path,
     project_dir: Path,
     mcd_files: list[Path],
-    txt_files: list[Path],
     channel_labels: list[str],
-) -> tuple[Path, Path | None]:
-    """Create an editable MCD channel-selection and TXT-matching form."""
+) -> Path:
+    """Create an editable MCD channel-selection form."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     form_path = output_dir / "mcd_channel_form.toml"
-    preview_path: Path | None = None
-
-    # Write a separate preview containing at most 1,000 lines.
-    if txt_files:
-        preview_path = output_dir / "txt_preview_1000_lines.txt"
-
-        with txt_files[0].open(
-            "r",
-            encoding="utf-8-sig",
-            errors="replace",
-        ) as source:
-            with preview_path.open("w", encoding="utf-8") as preview:
-                for line_number, line in enumerate(source):
-                    if line_number >= 1000:
-                        break
-                    preview.write(line)
 
     mcd_paths = [
         path_for_form(path, project_dir)
         for path in mcd_files
     ]
-    txt_paths = [
-        path_for_form(path, project_dir)
-        for path in txt_files
-    ]
-
-    preview_reference = (
-        path_for_form(preview_path, project_dir)
-        if preview_path is not None
-        else ""
-    )
 
     mcd_file_comments = "\n".join(
         f"#   - {path}" for path in mcd_paths
     ) or "#   No MCD files found."
 
-    txt_file_comments = "\n".join(
-        f"#   - {path}" for path in txt_paths
-    ) or "#   No TXT files found."
-
-    form_text = f'''# IMC CURATION — MCD CHANNEL AND TXT MATCHING FORM
+    form_text = f'''# IMC CURATION — MCD CHANNEL SELECTION FORM
 #
 # PURPOSE
-# Select MCD channel labels to retain and, when TXT files are available,
-# identify the relationship between the MCD and TXT data.
+# Select MCD channel labels to retain.
 #
 # STEP 1 — REVIEW THE AVAILABLE FILES
 #
 # Available MCD files:
 {mcd_file_comments}
-#
-# Available TXT files:
-{txt_file_comments}
 #
 # STEP 2 — SELECT CHANNEL LABELS TO KEEP
 #
@@ -123,30 +111,13 @@ def create_mcd_review_form(
 # Keep the TOML array syntax and quotation marks.
 # An empty array means that no channel labels are selected.
 #
-# ##### ONLY IF MCD AND TXT FILES PRESENT #####
-#
-# STEP 3 — IDENTIFY THE MCD/TXT CONNECTION (IF APPLICABLE)
-#
-# Inspect the TXT preview:
-#
-#     {preview_reference or "No TXT preview was generated."}
-#
-# Select the exact MCD and TXT paths from the lists above.
-# Enter the exact TXT column names for the X and Y coordinates.
-# Leave coordinate fields empty if they cannot be identified.
-#
 # IMPORTANT
 #   - Keep this file in TOML format.
 #   - Do not remove or rename the keys below.
 #   - Use TOML strings, including quotation marks.
-#   - The preview contains at most the first 1,000 lines of one TXT file.
-#   - The preview does not modify the original TXT file.
-#   - TXT matching fields can remain empty when TXT files are unavailable.
 
 [source]
 mcd_files = {toml_string_list(mcd_paths)}
-txt_files = {toml_string_list(txt_paths)}
-txt_preview = {toml_string(preview_reference)}
 
 [channel_selection]
 channel_labels = {toml_string_list(channel_labels)}
@@ -160,39 +131,23 @@ channel_labels = {toml_string_list(channel_labels)}
 #   '^'               -> matches the beginning of the name (not useful for extraction)
 [target_name_cleaning]
 target_name_regex = ''
-
-##### ONLY IF STEP 3 APPLICABLE #####
-
-[txt_mcd_connection]
-# mcd file name cleaning regex to extract ID on witch 
-# corresponding mcd and txt files will be mapped.
-mcd_name_regex = ''
-
-# txt file name cleaning regex to extract ID on witch 
-# corresponding mcd and txt files will be mapped.
-txt_name_regex = ''
-
-# Exact TXT header for the X coordinate.
-x_coordinate_column = ''
-
-# Exact TXT header for the Y coordinate.
-y_coordinate_column = ''
 '''
 
     form_path.write_text(form_text, encoding="utf-8")
-    return form_path.resolve(), (
-        preview_path.resolve() if preview_path is not None else None
-    )
+    return form_path.resolve()
 
 
 def examine_mcd_files(
         project_dir: Path, 
         output_dir: Path,
+        markers_output_dir: Path,
+        logs_dir: Path,
         progress: ProgressManager,
 ) -> str:
     """Examine populated MCD files and write an IMC manifest and review form."""
     project_dir = project_dir.resolve()
-    output_dir = output_dir.resolve()
+    markers_output_dir = markers_output_dir.expanduser().resolve()
+    logs_dir = logs_dir.expanduser().resolve()
 
     search_config = load_search_config()
     destination = Path(
@@ -220,17 +175,8 @@ def examine_mcd_files(
     if not mcd_files:
         return f"No MCD files found in: {destination}"
 
-    # Discover TXT files associated with the raw IMC data directory.
-    txt_files = sorted(
-        (
-            path
-            for path in destination.rglob("*")
-            if path.is_file() and path.suffix.lower() == ".txt"
-        ),
-        key=lambda path: str(path).casefold(),
-    )
-
     inspected_files = []
+    acquisition_log_records = []
     successful_count = 0
     acquisition_count = 0
     readable_image_count = 0
@@ -242,6 +188,11 @@ def examine_mcd_files(
     ):
         try:
             records = inspect_mcd(mcd_path)
+            acquisition_log_records.extend(
+                record
+                for record in records
+                if record.get("record_type") == "acquisition"
+            )
 
             # Only acquisition records belong in mcd_files.acquisitions.
             acquisitions = [
@@ -282,119 +233,122 @@ def examine_mcd_files(
                 }
             )
 
-    manifest_message = (
-        "No valid MCD acquisitions were inspected; "
-        "no IMC manifest was created."
+    log_path = logs_dir / "mcd_acquisition_log.toml"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    safe_records = [
+        {
+            key: ("" if value is None else value)
+            for key, value in record.items()
+        }
+        for record in acquisition_log_records
+    ]
+    log_path.write_bytes(
+        tomli_w.dumps({"acquisitions": safe_records}).encode("utf-8")
     )
 
-    if successful_count:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = output_dir / "imc_manifest.toml"
+    panel_review_count = 0
+    panels_by_signature: dict[tuple[str, ...], dict] = {}
+    images_output_dir = get_unpacked_images_dir(
+        project_dir=project_dir,
+        config=load_config(),
+    )
 
-        lines = [
-            "schema_version = 1",
-            "",
-        ]
+    for item in inspected_files:
+        if item["status"] != "success":
+            continue
 
-        for item in inspected_files:
-            relative_path = item["path"].relative_to(
-                project_dir
-            ).as_posix()
+        for acquisition in item["acquisitions"]:
+            labels = acquisition.get("channel_labels", [])
+            names = acquisition.get("channel_names", [])
+            rows = []
 
-            lines.extend(
-                [
-                    "[[mcd_files]]",
-                    f"path = {toml_string(relative_path)}",
-                    (
-                        "inspection_status = "
-                        f"{toml_string(item['status'])}"
-                    ),
-                ]
+            for index, label in enumerate(labels):
+                marker = (
+                    str(label).strip()
+                    if index < len(labels) and str(label).strip()
+                    else str(names[index]).strip()
+                )
+                metal_isotope = str(names[index]).strip()
+                rows.append(
+                    {
+                        "biological_marker": marker,
+                        "channel_number": index,
+                        "metal_isotope": metal_isotope,
+                    }
+                )
+
+            signature_records = [
+                {
+                    "biological_marker": row["biological_marker"],
+                    "raw_name": row["biological_marker"],
+                    "raw_fluor": row["metal_isotope"],
+                    "metal_ion": row["metal_isotope"],
+                }
+                for row in rows
+            ]
+            signature = build_panel_signature(
+                signature_records,
+                marker_key="biological_marker",
+                raw_name_key="raw_name",
+                raw_fluor_key="raw_fluor",
+            )
+            signature_key = tuple(signature)
+
+            if signature_key not in panels_by_signature:
+                source_path = item["path"].relative_to(
+                    project_dir
+                ).as_posix()
+                panels_by_signature[signature_key] = {
+                    "panel_id": build_panel_id(signature),
+                    "rows": rows,
+                    "source_path": source_path,
+                    "image_paths": [],
+                }
+
+            output_name = (
+                f"{_safe_stem(item['path'].stem)}"
+                f"_slide{acquisition['slide_id']}"
+                f"_acq{acquisition['acquisition_id']}.tiff"
+            )
+            tiff_path = (
+                images_output_dir
+                / _safe_stem(item["path"].parent.name)
+                / output_name
+            )
+            if tiff_path.is_relative_to(project_dir):
+                relative_image_path = tiff_path.relative_to(
+                    project_dir
+                ).as_posix()
+            else:
+                relative_image_path = str(tiff_path)
+
+            panels_by_signature[signature_key]["image_paths"].append(
+                relative_image_path
             )
 
-            if item["error"] is not None:
-                lines.append(
-                    f"error = {toml_string(item['error'])}"
-                )
-
-            lines.append("")
-
-            for acquisition in item["acquisitions"]:
-                lines.extend(
-                    [
-                        "[[mcd_files.acquisitions]]",
-                        f"slide_id = {acquisition['slide_id']}",
-                        (
-                            "acquisition_id = "
-                            f"{acquisition['acquisition_id']}"
-                        ),
-                        (
-                            "acquisition_name = "
-                            f"{toml_string(acquisition.get('acquisition_name', ''))}"
-                        ),
-                        f"width_px = {acquisition['width_px']}",
-                        f"height_px = {acquisition['height_px']}",
-                        (
-                            "channel_names = "
-                            f"{toml_array(acquisition.get('channel_names', []))}"
-                        ),
-                        (
-                            "channel_labels = "
-                            f"{toml_array(acquisition.get('channel_labels', []))}"
-                        ),
-                    ]
-                )
-
-                if "image_available" in acquisition:
-                    lines.append(
-                        "image_available = "
-                        + (
-                            "true"
-                            if acquisition["image_available"]
-                            else "false"
-                        )
-                    )
-
-                if acquisition.get("image_shape") is not None:
-                    shape = acquisition["image_shape"]
-                    lines.append(
-                        "image_shape = ["
-                        + ", ".join(str(int(value)) for value in shape)
-                        + "]"
-                    )
-
-                if acquisition.get("image_error"):
-                    lines.append(
-                        "image_error = "
-                        f"{toml_string(acquisition['image_error'])}"
-                    )
-
-                lines.append("")
-
-        manifest_path.write_text(
-            "\n".join(lines) + "\n",
-            encoding="utf-8",
+    assignment_entries = {}
+    for panel in panels_by_signature.values():
+        create_panel_review(
+            panel_id=panel["panel_id"],
+            panel_table=pd.DataFrame(
+                panel["rows"],
+                columns=[
+                    "biological_marker",
+                    "channel_number",
+                    "metal_isotope",
+                ],
+            ),
+            source_path=panel["source_path"],
+            markers_output_dir=markers_output_dir,
+            project_dir=project_dir,
+            parsed_columns=True,
         )
+        assignment_entries[f"{panel['panel_id']}.csv"] = panel["image_paths"]
+        panel_review_count += 1
 
-        manifest_message = f"IMC manifest: {manifest_path}"
-
-    # Collect unique channel labels in their original discovery order.
-    all_channel_labels = list(
-        dict.fromkeys(
-            label
-            for item in inspected_files
-            if item["status"] == "success"
-            for acquisition in item["acquisitions"]
-            for label in acquisition.get("channel_labels", [])
-        )
-    )
-
-    form_path, preview_path = create_mcd_review_form(
-        output_dir=output_dir,
-        project_dir=project_dir,
-        mcd_files=mcd_files,
-        txt_files=txt_files,
-        channel_labels=all_channel_labels,
+    append_assignments(
+        markers_output_dir / "assign_images_to_panels.toml",
+        assignment_entries,
     )
 
     return "\n".join(
@@ -407,12 +361,8 @@ def examine_mcd_files(
             f"MCD files that failed: {len(mcd_files) - successful_count}",
             f"Acquisitions found: {acquisition_count}",
             f"Acquisitions with readable image data: {readable_image_count}",
-            manifest_message,
-            f"MCD channel-selection form: {form_path}",
-            (
-                f"TXT preview (first 1,000 lines): {preview_path}"
-                if preview_path is not None
-                else "TXT preview: not generated (no TXT files found)"
-            ),
+            f"MCD acquisition log: {log_path}",
+            f"Panel review forms: {markers_output_dir}",
+            f"Candidate panels: {panel_review_count}",
         ]
     )

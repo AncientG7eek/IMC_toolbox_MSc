@@ -1,35 +1,89 @@
 Marker Name,Comment,Aliases
 Alpha_SMA,,Alpha_SMA
+Beta-2 Microglobulin,,Beta-2 Microglobulin
 CA_IX,,CA_IX
+Carbonic Anhydrase IX,,Carbonic Anhydrase IX
 CD11b,,CD11b
 CD11c,,CD11c
 CD127,,CD127
 CD134,,CD134
 CD14,,CD14
+CD140b (PDGF Receptor beta),,CD140b (PDGF Receptor beta)
+CD15,,CD15
 CD16,,CD16
+CD163,,CD163
 CD194,,CD194
 CD20,,CD20
+CD206 (MMR),,CD206 (MMR)
 CD223,,CD223
 CD27,,CD27
 CD274,,CD274
+CD274 (B7-H1- PD-L1),,CD274 (B7-H1- PD-L1)
 CD278,,CD278
+CD278 (ICOS),,CD278 (ICOS)
 CD279,,CD279
+CD279 (PD-1),,CD279 (PD-1)
 CD3,,CD3
+CD3 epsilon,,CD3 epsilon
+CD303,,CD303
+CD31,,CD31
+CD33,,CD33
 CD366,,CD366
 CD38,,CD38
 CD4,,CD4
+CD40,,CD40
+CD44,,CD44
 CD45,,CD45
+CD45RA,,CD45RA
+CD45RO,,CD45RO
 CD68,,CD68
+CD7,,CD7
 CD74,,CD74
 CD8a,,CD8a
+CD99,,CD99
+Cleaved Caspase3,,Cleaved Caspase3
+cleaved PARP,,cleaved PARP
 Collagen_I,,Collagen_I
+Cytokeratin 19,,Cytokeratin 19
+DistanceBV,,DistanceBV
+DistanceIslet,,DistanceIslet
+DistanceIsletSkeleton,,DistanceIsletSkeleton
+E-Cadherin / P-Cadherin,,E-Cadherin / P-Cadherin
 E_Cadherin,,E_Cadherin
 EpCAM,,EpCAM
 FAP,,FAP
 FoxP3,,FoxP3
+FOXP3,,FOXP3
+Glucagon,,Glucagon
+Glucose Transporter GLUT1,,Glucose Transporter GLUT1
+Goat IgG,,Goat IgG
+Granzyme B,,Granzyme B
+Histone H3,,Histone H3
+HLA-DR,,HLA-DR
 HLA_DR,,HLA_DR
 IDO,,IDO
+Indoleamine 2- 3-dioxygenase (IDO),,Indoleamine 2- 3-dioxygenase (IDO)
+insulin,,insulin
+Iridium,,Iridium
+islet amyloid polypeptide,,islet amyloid polypeptide
+Ki-67,,Ki-67
 Ki67,,Ki67
+LAG-3,,LAG-3
+Myeloperoxidase MPO,,Myeloperoxidase MPO
+NKX6-1,,NKX6-1
+Pancreatic Amylase,,Pancreatic Amylase
+Pancreatic Polypeptide,,Pancreatic Polypeptide
 PDGFRb,,PDGFRb
+Polyclonal Antibody against Human PTPRN,,Polyclonal Antibody against Human PTPRN
+Prohormone Convertase 2,,Prohormone Convertase 2
+Proinsulin,,Proinsulin
+Rb,,Rb
+SMA,,SMA
+Somatostatin,,Somatostatin
+Synaptophysin,,Synaptophysin
+TCF1/TCF7,,TCF1/TCF7
+Uncertainty,,Uncertainty
 VEGF,,VEGF
 Vimentin,,Vimentin
+VISTA,,VISTA
+Xenon,,Xenon

@@ -284,6 +284,7 @@ def discover(
     config = load_search_config()
     logger = get_action_logger(
         project_dir=project_dir,
+        command="inspect",
         action="file_classification",
     )
 

@@ -1,6 +1,22 @@
 Standardized Feature,Standardized Value,Cohort,Original Feature,Original Value
 gender,male,ddd,Sex,M
 Sex,F,ddd,Sex,F
+Aab status,Positive,test1,Aab status,Positive
+BMI,26.0,test1,BMI,26.0
+case,6089.0,test1,case,6089.0
+Ethnicity,Caucasian,test1,Ethnicity,Caucasian
+Gender,M,test1,Gender,M
+Indication,BCC,test1,Indication,BCC
+Indication,CRC,test1,Indication,CRC
+Indication,NSCLC,test1,Indication,NSCLC
+Indication,SCCHN,test1,Indication,SCCHN
+part,Body,test1,part,Body
+part,Tail,test1,part,Tail
+Sample ID,Patient1,test1,Sample ID,Patient1
+Sample ID,Patient2,test1,Sample ID,Patient2
+Sample ID,Patient3,test1,Sample ID,Patient3
+Sample ID,Patient4,test1,Sample ID,Patient4
+stage,Long-duration,test1,stage,Long-duration
 Age,30,xu-melanoma,Age,30
 Age,31,xu-melanoma,Age,31
 Age,37,xu-melanoma,Age,37
