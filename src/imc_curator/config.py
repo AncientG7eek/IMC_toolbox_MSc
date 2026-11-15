@@ -66,6 +66,24 @@ def load_ome_parser_config() -> dict:
         return tomllib.load(f)
 
 
+def get_global_files_dir(config: dict) -> Path:
+    """Return the configured global files directory."""
+    base = Path(config["curation"]["global_files_dir"])
+    if not base.is_absolute():
+        base = PROJECT_ROOT / base
+    return base
+
+
+def get_global_file_path(config: dict, key: str) -> Path:
+    """Return the full path to a configured global file."""
+    return get_global_files_dir(config) / config["curation"][key]
+
+
+def get_global_subdir(config: dict, key: str) -> Path:
+    """Return the full path to a configured global subdirectory."""
+    return get_global_files_dir(config) / config["curation"][key]
+
+
 def get_projects_dir() -> Path:
     """Return the configured directory for cohort projects."""
 
@@ -213,6 +231,9 @@ def get_unpacked_images_dir(project_dir: Path, config: dict) -> Path:
 
 def get_selected_images_dir(project_dir: Path, config: dict) -> Path:
     return project_dir / config["project_file_system"]["selected_images_dir"]
+
+def get_selected_clinical_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["project_file_system"]["selected_clinical_dir"]
 
 def get_panels_dir(project_dir: Path, config: dict) -> Path:
     return project_dir / config["project_file_system"]["panels_dir"]

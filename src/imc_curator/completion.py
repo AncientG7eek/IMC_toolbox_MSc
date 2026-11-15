@@ -1,10 +1,6 @@
-from pathlib import Path
-
 import typer
 
-
-PACKAGE_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = PACKAGE_DIR / "data" / "cohorts"
+from imc_curator.config import get_projects_dir
 
 
 def complete_datasets(
@@ -14,12 +10,14 @@ def complete_datasets(
 ) -> list[str]:
     """Autocomplete dataset names from the package data directory."""
     
-    if not DATA_DIR.is_dir():
+    projects_dir = get_projects_dir()
+
+    if not projects_dir.is_dir():
         return []
 
     return sorted(
         directory.name
-        for directory in DATA_DIR.iterdir()
+        for directory in projects_dir.iterdir()
         if directory.is_dir()
         and directory.name.startswith(incomplete)
     )

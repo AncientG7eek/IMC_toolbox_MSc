@@ -33,7 +33,7 @@ def curate(
 
     extract_dir = project_dir / "curation_manifests" / "extract"
     marker_dir = project_dir / "metadata" / "markers" / "selected"
-    clinical_dir = extract_dir / "clinical"
+    clinical_dir = project_dir / "metadata" / "clinical" / "selected"
 
     if not marker_dir.is_dir():
         raise typer.BadParameter(

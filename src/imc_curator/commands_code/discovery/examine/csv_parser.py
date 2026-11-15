@@ -180,6 +180,7 @@ def clinical_csv_parser(
     clinical_file_path: Path,
     review_csv_path: Path,
     project_dir: Path,
+    clinical_table: pd.DataFrame | None = None,
 ) -> str:
     """
     Create an editable clinical review CSV and its TOML instructions.
@@ -187,7 +188,18 @@ def clinical_csv_parser(
     The review CSV contains up to six example rows and a final selection
     row initialized to 1.
     """
-    clinical_table = pd.read_csv(clinical_file_path).head(6).copy()
+    if clinical_table is None:
+        if clinical_file_path.suffix.lower() == ".xlsx":
+            raw_table = pd.read_excel(
+                clinical_file_path,
+                engine="openpyxl",
+            )
+        else:
+            raw_table = pd.read_csv(clinical_file_path)
+    else:
+        raw_table = clinical_table
+
+    clinical_table = raw_table.head(6).copy()
 
     # Add the feature-selection row.
     selection_row = pd.DataFrame(
@@ -261,6 +273,9 @@ path = {toml_string(source_path)}
 
 # Editable review CSV containing sample rows and the feature-selection row.
 review_csv = {toml_string(review_path)}
+
+[cohort]
+name = ''
 
 [clinical_matching]
 # REQUIRED: exact column name containing the clinical identifiers.
@@ -337,6 +352,7 @@ def examine_marker_and_clinical_tables(
 
     marker_table_forms: list[tuple[Path, Path]] = []
     clinical_table_forms: list[tuple[Path, Path]] = []
+    unreadable_clinical_files: list[str] = []
 
     # Generate marker forms.
     marker_files = (
@@ -411,7 +427,7 @@ def examine_marker_and_clinical_tables(
                 path
                 for path in clinical_path.rglob("*")
                 if path.is_file()
-                and path.suffix.lower() == ".csv"
+                and path.suffix.lower() in {".csv", ".xlsx"}
             ),
             key=lambda path: str(path).lower(),
         )
@@ -424,11 +440,27 @@ def examine_marker_and_clinical_tables(
             )
             form_path = clinical_output_dir / stem / f"clinical_form_{stem}.toml"
 
-            form_text = clinical_csv_parser(
-                clinical_file_path=clinical_file,
-                review_csv_path=review_csv_path,
-                project_dir=project_dir,
-            )
+            try:
+                if clinical_file.suffix.lower() == ".xlsx":
+                    clinical_table = pd.read_excel(
+                        clinical_file,
+                        engine="openpyxl",
+                    )
+                    form_text = clinical_csv_parser(
+                        clinical_file_path=clinical_file,
+                        review_csv_path=review_csv_path,
+                        project_dir=project_dir,
+                        clinical_table=clinical_table,
+                    )
+                else:
+                    form_text = clinical_csv_parser(
+                        clinical_file_path=clinical_file,
+                        review_csv_path=review_csv_path,
+                        project_dir=project_dir,
+                    )
+            except Exception:
+                unreadable_clinical_files.append(str(clinical_file))
+                continue
             form_path = create_form(form_text, form_path).resolve()
             clinical_table_forms.append((clinical_file.resolve(), form_path))
 
@@ -479,5 +511,17 @@ def examine_marker_and_clinical_tables(
         )
     else:
         report_lines.append("  No clinical feature tables found.")
+
+    if unreadable_clinical_files:
+        report_lines.extend(
+            [
+                "",
+                "These xlsx files couldn't be read, please provide CSV "
+                "versions of them:",
+            ]
+        )
+        report_lines.extend(
+            f"  {path}" for path in unreadable_clinical_files
+        )
 
     return "\n".join(report_lines)

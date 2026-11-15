@@ -6,6 +6,7 @@ import csv
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import tifffile
 
 if TYPE_CHECKING:
@@ -19,6 +20,24 @@ def _read_panel_channels(panel_path: Path) -> list[dict[str, str]]:
         newline="",
     ) as file:
         return [dict(row) for row in csv.DictReader(file)]
+
+
+def _read_tiff_stack(tiff_path: Path) -> np.ndarray:
+    """Read a TIFF as a CYX array without relying on OME series parsing."""
+    with tifffile.TiffFile(tiff_path) as tiff:
+        pages = list(tiff.pages)
+
+        if not pages:
+            raise ValueError(f"TIFF has no pages: {tiff_path}")
+
+        if len(pages) == 1:
+            array = pages[0].asarray()
+            if array.ndim == 2:
+                array = array[None, :, :]
+            return array
+
+        arrays = [page.asarray() for page in pages]
+        return np.stack(arrays, axis=0)
 
 
 def subset_images(
@@ -88,7 +107,7 @@ def subset_images(
             panels[panel_file] = _read_panel_channels(panel_path)
         panel_channels = panels[panel_file]
 
-        image = tifffile.imread(tiff_path)
+        image = _read_tiff_stack(tiff_path)
         if image.ndim != 3:
             skipped += 1
             continue
@@ -112,9 +131,6 @@ def subset_images(
                 )
 
         if not selected_indices:
-            skipped += 1
-            continue
-        if len(selected_indices) == image.shape[0]:
             skipped += 1
             continue
 

@@ -4,12 +4,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import tomli_w
 
 if TYPE_CHECKING:
     from imc_curator.progress_bar import ProgressManager
 
 
 IMAGE_EXTENSIONS = {".tif", ".tiff"}
+
+
+def _safe_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "").strip())
+    return cleaned.strip("._")
 
 
 def _resolve_path(path: str, project_dir: Path) -> Path:
@@ -51,6 +57,8 @@ def extract_clinical_tables(
     project_dir: Path,
     forms_dir: Path,
     output_dir: Path,
+    info_output_dir: Path,
+    images_dir: Path | None = None,
     progress: "ProgressManager | None" = None,
 ) -> str:
     """
@@ -61,10 +69,18 @@ def extract_clinical_tables(
     forms_dir = _resolve_path(str(forms_dir), project_dir)
     output_dir = _resolve_path(str(output_dir), project_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    info_output_dir = _resolve_path(
+        str(info_output_dir),
+        project_dir,
+    )
+    info_output_dir.mkdir(parents=True, exist_ok=True)
 
-    images_dir = project_dir / "data" / "raw" / "unpacked"
+    if images_dir is None:
+        images_dir = project_dir / "data" / "raw" / "unpacked"
+    else:
+        images_dir = _resolve_path(str(images_dir), project_dir)
 
-    form_paths = sorted(forms_dir.glob("*.toml"))
+    form_paths = sorted(forms_dir.rglob("*.toml"))
 
     if not form_paths:
         return f"No clinical TOML forms found in:\n  {forms_dir}"
@@ -111,6 +127,8 @@ def extract_clinical_tables(
         source_config = form.get("source", {})
         matching_config = form.get("clinical_matching", {})
         review_config = form.get("review", {})
+        cohort_config = form.get("cohort", {})
+        requested_name = str(cohort_config.get("name", "") or "").strip()
 
         source_csv = _resolve_path(
             source_config["path"],
@@ -204,9 +222,21 @@ def extract_clinical_tables(
             if value == 1:
                 selected_columns.append(column)
 
+        selected_feature_columns = list(selected_columns)
+
         # The identifier must remain available for matching.
         if identifier_column not in selected_columns:
             selected_columns.append(identifier_column)
+
+        # Keep the identifier as the left-most selected column.
+        if identifier_column in selected_columns:
+            selected_columns = [
+                identifier_column
+            ] + [
+                column
+                for column in selected_columns
+                if column != identifier_column
+            ]
 
         missing_columns = [
             column
@@ -230,7 +260,9 @@ def extract_clinical_tables(
         unmatched_clinical = selected_table["_match_id"].isna()
 
         # Save selected clinical data without the internal matching column.
-        output_stem = form_path.stem.removesuffix("_form")
+        output_stem = _safe_name(requested_name) or form_path.stem.removesuffix(
+            "_form"
+        )
 
         selected_output = output_dir / f"{output_stem}_selected.csv"
 
@@ -271,12 +303,46 @@ def extract_clinical_tables(
         matched_images = matches["_merge"] == "both"
         unmatched_images = matches["image_id"].isna() | ~matched_images
 
+        matches = matches[matches["_merge"] == "both"]
         matches = matches.drop(
-            columns=["_match_id", "_merge"]
+            columns=[
+                column
+                for column in ("_match_id", "_merge", identifier_column)
+                if column in matches.columns
+            ]
         )
 
         matches_output = output_dir / f"{output_stem}_image_clinical_matches.csv"
         matches.to_csv(matches_output, index=False)
+
+        selected_features = {}
+        rejected_features = {}
+        for column in clinical_table.columns:
+            unique_values = [
+                str(value)
+                for value in clinical_table[column].dropna().unique()
+            ]
+            if column in selected_feature_columns:
+                selected_features[column] = unique_values
+            else:
+                rejected_features[column] = unique_values
+
+        associated_images = [
+            str(value)
+            for value in matches["image_path"].dropna().unique()
+        ]
+
+        info_data = {
+            "name": output_stem,
+            "original_csv": source_csv.name,
+            "images": associated_images,
+            "selected_features": selected_features,
+            "rejected_features": rejected_features,
+        }
+        info_path = info_output_dir / f"{output_stem}.toml"
+        info_path.write_bytes(
+            tomli_w.dumps(info_data).encode("utf-8")
+        )
 
         reports.extend(
             [
@@ -290,6 +356,7 @@ def extract_clinical_tables(
                 f"{unmatched_clinical.sum()}",
                 f"Selected clinical output: {selected_output.resolve()}",
                 f"Image-clinical matches: {matches_output.resolve()}",
+                f"Cohort info: {info_path.resolve()}",
             ]
         )
 

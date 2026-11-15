@@ -1,10 +1,11 @@
-projects_dir = "data/cohorts"
+projects_dir = "/raid_encrypted/immucan/kacpie/data/projects"
 
 [project_file_system]
 unpacked_images_dir = "data/raw/unpacked"
 selected_images_dir = "data/raw/selected"
 processed_images_dir = "data/processed"
 panels_dir = "metadata/markers"
+selected_clinical_dir = "metadata/clinical/selected"
 
 [manifests]
 inspection = [
@@ -19,9 +20,14 @@ examine = [
 
 [curation]
 curation_manifests_subdir = "curation_manifests"
-global_marker_names_path = "configs/global_files/global_marker_names.csv"
-global_marker_channels_path = "configs/global_files/global_marker_channels.csv"
-global_clinical_values_path = "configs/global_files/global_clinical_values.csv"
+global_files_dir = "/raid_encrypted/immucan/kacpie/global_files"
+global_marker_names_file = "global_marker_names.csv"
+global_marker_channels_file = "global_marker_channels.csv"
+global_clinical_values_file = "global_clinical_values.csv"
+global_image_clinical_file = "global_image_clinical.csv"
+global_image_register_file = "global_register_of_images.csv"
+global_images_subdir = "all_images"
+relative_images_dir = "data/raw/selected"
 
 [logging]
 logs_subdir = "logs"

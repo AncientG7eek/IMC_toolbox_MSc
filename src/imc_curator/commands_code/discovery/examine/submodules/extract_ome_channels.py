@@ -100,65 +100,103 @@ def extract_tiff_metadata(
     try:
         # Read embedded OME-XML without loading pixel arrays.
         with tifffile.TiffFile(tiff_path) as tiff:
-            ome_xml = tiff.ome_metadata
+            fallback_xml = tiff.ome_metadata
+            pages = list(tiff.pages)
 
-        if not ome_xml:
-            scan_record["status"] = "no_ome_metadata"
-            return [], scan_record
-
-        root = ET.fromstring(ome_xml)
-
-        if local_name(root.tag) != "OME":
-            scan_record["status"] = "unexpected_xml_root"
+        if not pages:
+            scan_record["status"] = "no_pages"
             return [], scan_record
 
         channel_records: list[dict[str, Any]] = []
         image_count = 0
 
-        for image in root.iter():
-            if local_name(image.tag) != "Image":
+        for page_index, page in enumerate(pages):
+            ome_xml = page.description
+            if not ome_xml and page_index == 0:
+                ome_xml = fallback_xml
+
+            if not ome_xml:
+                channel_records.append({
+                    "tiff_path": relative_path,
+                    "image_name": "",
+                    "image_id": "",
+                    "channel_number": len(channel_records),
+                    "channel_id": f"Channel:{page_index}",
+                    "raw_name": f"Channel {page_index + 1}",
+                    "raw_fluor": "",
+                    "excitation_wavelength": "",
+                    "emission_wavelength": "",
+                    "color": "",
+                    "samples_per_pixel": "",
+                })
                 continue
 
-            pixels_elements = child_elements(image, "Pixels")
-
-            if not pixels_elements:
+            try:
+                root = ET.fromstring(ome_xml)
+            except ET.ParseError:
                 continue
 
-            image_count += 1
-            image_name = attribute(image, "Name")
-            image_id = attribute(image, "ID")
+            if local_name(root.tag) != "OME":
+                continue
 
-            for pixels in pixels_elements:
-                for channel in child_elements(pixels, "Channel"):
-                    channel_id = attribute(channel, "ID")
+            found_channel = False
+            for image in root.iter():
+                if local_name(image.tag) != "Image":
+                    continue
 
-                    # OME IDs often end in a zero-based index, but
-                    # numbering here is intentionally human-readable
-                    # and 1-based within this TIFF.
-                    channel_number = len(channel_records)
+                pixels_elements = child_elements(image, "Pixels")
+                if not pixels_elements:
+                    continue
 
-                    channel_records.append({
-                        "tiff_path": relative_path,
-                        "image_name": image_name,
-                        "image_id": image_id,
-                        "channel_number": channel_number,
-                        "channel_id": channel_id,
-                        "raw_name": attribute(channel, "Name"),
-                        "raw_fluor": attribute(channel, "Fluor"),
-                        "excitation_wavelength": attribute(
-                            channel,
-                            "ExcitationWavelength",
-                        ),
-                        "emission_wavelength": attribute(
-                            channel,
-                            "EmissionWavelength",
-                        ),
-                        "color": attribute(channel, "Color"),
-                        "samples_per_pixel": attribute(
-                            channel,
-                            "SamplesPerPixel",
-                        ),
-                    })
+                image_count += 1
+                image_name = attribute(image, "Name")
+                image_id = attribute(image, "ID")
+
+                for pixels in pixels_elements:
+                    for channel in child_elements(pixels, "Channel"):
+                        found_channel = True
+                        channel_id = attribute(channel, "ID") or (
+                            f"Channel:{page_index}"
+                        )
+                        channel_number = len(channel_records)
+
+                        channel_records.append({
+                            "tiff_path": relative_path,
+                            "image_name": image_name,
+                            "image_id": image_id,
+                            "channel_number": channel_number,
+                            "channel_id": channel_id,
+                            "raw_name": attribute(channel, "Name"),
+                            "raw_fluor": attribute(channel, "Fluor"),
+                            "excitation_wavelength": attribute(
+                                channel,
+                                "ExcitationWavelength",
+                            ),
+                            "emission_wavelength": attribute(
+                                channel,
+                                "EmissionWavelength",
+                            ),
+                            "color": attribute(channel, "Color"),
+                            "samples_per_pixel": attribute(
+                                channel,
+                                "SamplesPerPixel",
+                            ),
+                        })
+
+            if not found_channel:
+                channel_records.append({
+                    "tiff_path": relative_path,
+                    "image_name": "",
+                    "image_id": "",
+                    "channel_number": len(channel_records),
+                    "channel_id": f"Channel:{page_index}",
+                    "raw_name": f"Channel {page_index + 1}",
+                    "raw_fluor": "",
+                    "excitation_wavelength": "",
+                    "emission_wavelength": "",
+                    "color": "",
+                    "samples_per_pixel": "",
+                })
 
         scan_record["image_count"] = image_count
         scan_record["channel_count"] = len(channel_records)

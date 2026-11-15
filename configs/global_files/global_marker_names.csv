@@ -1,89 +1,137 @@
 Marker Name,Comment,Aliases
-Alpha_SMA,,Alpha_SMA
+131Xe,,131Xe
+134Xe,,134Xe
+136Ba,,136Ba
+138La,,138La
+196Pt,,196Pt
+206Pb,,206Pb
+80ArAr,,80ArAr
+Bcatenin,,Bcatenin
 Beta-2 Microglobulin,,Beta-2 Microglobulin
-CA_IX,,CA_IX
+Beta-2M_1855((2962))Nd148,,Beta-2M_1855((2962))Nd148
+beta-Actin,,beta-Actin
+C-peptide,,C-peptide
+CA2,,CA2
+Carboni_2443((2985))Er166,,Carboni_2443((2985))Er166
 Carbonic Anhydrase IX,,Carbonic Anhydrase IX
+CD103,,CD103
 CD11b,,CD11b
 CD11c,,CD11c
-CD127,,CD127
-CD134,,CD134
+CD11c_2406((2983))Sm154,,CD11c_2406((2983))Sm154
 CD14,,CD14
 CD140b (PDGF Receptor beta),,CD140b (PDGF Receptor beta)
+CD140b(_1938((2948))Gd156,,CD140b(_1938((2948))Gd156
+CD14_2275((2958))Yb172,,CD14_2275((2958))Yb172
 CD15,,CD15
+CD15_627((2954))Nd145,,CD15_627((2954))Nd145
 CD16,,CD16
 CD163,,CD163
-CD194,,CD194
+CD163_1863((2947))Sm147,,CD163_1863((2947))Sm147
+CD16_1820((2945))Pr141,,CD16_1820((2945))Pr141
+CD19,,CD19
 CD20,,CD20
+CD204,,CD204
 CD206 (MMR),,CD206 (MMR)
-CD223,,CD223
+CD206(M_324((2960))Lu175,,CD206(M_324((2960))Lu175
+CD20_36((2980))Sm149,,CD20_36((2980))Sm149
 CD27,,CD27
-CD274,,CD274
 CD274 (B7-H1- PD-L1),,CD274 (B7-H1- PD-L1)
-CD278,,CD278
+CD274(B_2298((2949))Gd160,,CD274(B_2298((2949))Gd160
 CD278 (ICOS),,CD278 (ICOS)
-CD279,,CD279
+CD278(I_1815((2951))Dy164,,CD278(I_1815((2951))Dy164
 CD279 (PD-1),,CD279 (PD-1)
+CD279(P_1743((2762))Gd155,,CD279(P_1743((2762))Gd155
+CD27_2231((2946))Nd144,,CD27_2231((2946))Nd144
 CD3,,CD3
-CD3 epsilon,,CD3 epsilon
 CD303,,CD303
+CD303_2313((2952))Yb174,,CD303_2313((2952))Yb174
 CD31,,CD31
 CD33,,CD33
-CD366,,CD366
+CD33_2237((2986))Er167,,CD33_2237((2986))Er167
 CD38,,CD38
+CD38_1719((2961))Nd142,,CD38_1719((2961))Nd142
+CD39,,CD39
+CD3_1841((2941))Sm152,,CD3_1841((2941))Sm152
 CD4,,CD4
 CD40,,CD40
+CD40_2255((2821))Er170,,CD40_2255((2821))Er170
 CD44,,CD44
 CD45,,CD45
 CD45RA,,CD45RA
+CD45RA_732((2955))Nd146,,CD45RA_732((2955))Nd146
 CD45RO,,CD45RO
+CD45RO_2014((2950))Dy162,,CD45RO_2014((2950))Dy162
+CD4_2293((2943))Yb171,,CD4_2293((2943))Yb171
+CD56,,CD56
+CD57,,CD57
 CD68,,CD68
+CD68_77((2963))Nd150,,CD68_77((2963))Nd150
 CD7,,CD7
-CD74,,CD74
+CD7_2258((2956))Gd158,,CD7_2258((2956))Gd158
+CD8,,CD8
 CD8a,,CD8a
+CD8a_1718((2957))Ho165,,CD8a_1718((2957))Ho165
 CD99,,CD99
-Cleaved Caspase3,,Cleaved Caspase3
 cleaved PARP,,cleaved PARP
-Collagen_I,,Collagen_I
-Cytokeratin 19,,Cytokeratin 19
-DistanceBV,,DistanceBV
-DistanceIslet,,DistanceIslet
-DistanceIsletSkeleton,,DistanceIsletSkeleton
+cleaved_198((2944))Yb176,,cleaved_198((2944))Yb176
+cleavedcaspase,,cleavedcaspase
+Collagen,,Collagen
+D2-40,,D2-40
+DNA1,,DNA1
+DNA191,,DNA191
+DNA193,,DNA193
+DNA2,,DNA2
+Dy163,,Dy163
+E-Cadhe_103((2959))Yb173,,E-Cadhe_103((2959))Yb173
 E-Cadherin / P-Cadherin,,E-Cadherin / P-Cadherin
-E_Cadherin,,E_Cadherin
-EpCAM,,EpCAM
-FAP,,FAP
-FoxP3,,FoxP3
 FOXP3,,FOXP3
+Foxp3,,Foxp3
+FOXP3_115((2942))Dy163,,FOXP3_115((2942))Dy163
+GHRL,,GHRL
 Glucagon,,Glucagon
-Glucose Transporter GLUT1,,Glucose Transporter GLUT1
-Goat IgG,,Goat IgG
+GnzB,,GnzB
+Granzym_2215((2819))Tb159,,Granzym_2215((2819))Tb159
 Granzyme B,,Granzyme B
+Histone,,Histone
 Histone H3,,Histone H3
+Histone_126((2979))In113,,Histone_126((2979))In113
+HLA-ABC,,HLA-ABC
 HLA-DR,,HLA-DR
-HLA_DR,,HLA_DR
+HLA-DR_1849((2953))Nd143,,HLA-DR_1849((2953))Nd143
+ICOS,,ICOS
 IDO,,IDO
+In113,,In113
+In115,,In115
+Indolea_2281((2981))Eu151,,Indolea_2281((2981))Eu151
 Indoleamine 2- 3-dioxygenase (IDO),,Indoleamine 2- 3-dioxygenase (IDO)
-insulin,,insulin
 Iridium,,Iridium
-islet amyloid polypeptide,,islet amyloid polypeptide
+Keratin,,Keratin
 Ki-67,,Ki-67
+Ki-67_142((2965))Er168,,Ki-67_142((2965))Er168
 Ki67,,Ki67
+La139,,La139
 LAG-3,,LAG-3
+LAG-3_1817((2982))Eu153,,LAG-3_1817((2982))Eu153
+Myelope_276((2967))Y89,,Myelope_276((2967))Y89
 Myeloperoxidase MPO,,Myeloperoxidase MPO
-NKX6-1,,NKX6-1
-Pancreatic Amylase,,Pancreatic Amylase
-Pancreatic Polypeptide,,Pancreatic Polypeptide
-PDGFRb,,PDGFRb
-Polyclonal Antibody against Human PTPRN,,Polyclonal Antibody against Human PTPRN
-Prohormone Convertase 2,,Prohormone Convertase 2
-Proinsulin,,Proinsulin
-Rb,,Rb
+Nestin,,Nestin
+NFkb,,NFkb
+NKX6.1,,NKX6.1
+P16ink4a,,P16ink4a
+pan-Keratin,,pan-Keratin
+PD-1,,PD-1
+PDL1,,PDL1
+PDX-1,,PDX-1
+PP,,PP; TGFb
+pS6,,pS6
 SMA,,SMA
+SMA_174((2780))In115,,SMA_174((2780))In115
 Somatostatin,,Somatostatin
-Synaptophysin,,Synaptophysin
+Tbet,,Tbet
 TCF1/TCF7,,TCF1/TCF7
-Uncertainty,,Uncertainty
-VEGF,,VEGF
+TCF1TCF_2221((2984))Dy161,,TCF1TCF_2221((2984))Dy161
+TCRgd,,TCRgd
 Vimentin,,Vimentin
 VISTA,,VISTA
-Xenon,,Xenon
+VISTA_2024,,VISTA
+VISTA_2024((2966))Tm169,,VISTA_2024((2966))Tm169

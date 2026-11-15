@@ -5,6 +5,7 @@ from imc_curator.config import (
     get_manifests_dir,
     get_unpacked_images_dir,
     get_selected_images_dir,
+    get_selected_clinical_dir,
     get_panels_dir,
     load_config,
 )
@@ -58,6 +59,10 @@ def extract(
         project_dir=project_dir,
         config=config,
     )
+    selected_clinical_dir = get_selected_clinical_dir(
+        project_dir=project_dir,
+        config=config,
+    )
 
     panels_dir = get_panels_dir(
         project_dir=project_dir,
@@ -74,6 +79,7 @@ def extract(
             raw_imc_report = extract_raw_tiffs(
                 project_dir=project_dir,
                 markers_dir=examine_dir / "markers",
+                images_output_dir=images_output_dir,
                 selected_images_dir=selected_images_dir,
                 progress=progress,
             )
@@ -111,7 +117,9 @@ def extract(
                 clinical_report = extract_clinical_tables(
                     project_dir=project_dir,
                     forms_dir=clinical_form_path,
-                    output_dir=extract_dir / "clinical",
+                    output_dir=selected_clinical_dir,
+                    info_output_dir=extract_dir / "clinical",
+                    images_dir=selected_images_dir,
                 )
         else:
             clinical_report = (

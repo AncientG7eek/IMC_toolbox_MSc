@@ -3,9 +3,15 @@ import csv
 from pathlib import Path
 from typing import Any
 
+import tifffile
 import typer
 
-from imc_curator.config import get_projects_dir, load_config
+from imc_curator.config import (
+    get_global_file_path,
+    get_global_subdir,
+    get_projects_dir,
+    load_config,
+)
 
 
 MARKER_MANIFEST_SUFFIX = "marker_mapping_review.csv"
@@ -17,6 +23,23 @@ CLINICAL_COLUMNS = [
     "Cohort",
     "Original Feature",
     "Original Value",
+]
+
+IMAGE_CLINICAL_COLUMNS = [
+    "global_path",
+    "relative_path",
+    "Cohort",
+    "Standardized Feature",
+    "Standardized Value",
+]
+
+IMAGE_REGISTER_COLUMNS = [
+    "global_path",
+    "relative_path",
+    "shape",
+    "panel_name",
+    "cohort_name",
+    "project_name",
 ]
 
 MARKER_COLUMNS = ["Marker Name", "Comment", "Aliases"]
@@ -78,13 +101,13 @@ def is_approved(value: str) -> bool:
 
 def discover_manifests(
     curate_dir: Path,
-    manifest_name: str,
+    manifest_suffix: str,
 ) -> list[Path]:
     """Discover manifests in both legacy and multi-table layouts."""
     return sorted(
         {
             path
-            for path in curate_dir.rglob(manifest_name)
+            for path in curate_dir.rglob(f"*{manifest_suffix}")
             if path.is_file()
         },
         key=lambda path: str(path).casefold(),
@@ -262,10 +285,22 @@ def update_global_clinical_values(
         tuple(row.get(column, "").strip() for column in CLINICAL_COLUMNS)
         for row in rows
     }
+    existing_cohorts = {
+        row.get("Cohort", "").strip().casefold()
+        for row in rows
+        if row.get("Cohort", "").strip()
+    }
+    reused_cohorts: list[str] = []
 
     for review in manifest_rows:
         original_feature = review.get("original_feature", "").strip()
         original_value = review.get("original_value", "").strip()
+        review_cohort = review.get("cohort", "").strip() or cohort
+        if (
+            review_cohort.casefold() in existing_cohorts
+            and review_cohort not in reused_cohorts
+        ):
+            reused_cohorts.append(review_cohort)
         standardized_feature, standardized_value = (
             _final_clinical_mapping(review, proceed)
         )
@@ -283,7 +318,7 @@ def update_global_clinical_values(
         record = (
             standardized_feature,
             standardized_value,
-            cohort,
+            review_cohort,
             original_feature,
             original_value,
         )
@@ -295,12 +330,263 @@ def update_global_clinical_values(
 
     rows.sort(
         key=lambda row: (
+            row.get("Standardized Feature", "").strip().casefold(),
+            row.get("Standardized Value", "").strip().casefold(),
             row.get("Cohort", "").strip().casefold(),
+        )
+    )
+    write_csv(path, headers, rows)
+
+    if reused_cohorts:
+        typer.echo(
+            "Following clinical cohort names were already taken by "
+            "existing cohorts in the global files:"
+        )
+        typer.echo(", ".join(reused_cohorts))
+        typer.echo(
+            "Please go back to the examine manifest, rename the cohort "
+            "and redo the following steps."
+        )
+
+
+def update_global_image_clinical(
+    path: Path,
+    match_files: list[Path],
+    clinical_sources: list[tuple[Path, list[dict[str, str]]]],
+    project_name: str,
+    relative_images_dir: str,
+    proceed: bool,
+) -> None:
+    headers, rows = ensure_csv(path, IMAGE_CLINICAL_COLUMNS)
+    headers = list(IMAGE_CLINICAL_COLUMNS)
+    rows = [
+        {column: row.get(column, "") for column in headers}
+        for row in rows
+    ]
+    existing = {
+        tuple(row.get(column, "").strip() for column in IMAGE_CLINICAL_COLUMNS)
+        for row in rows
+    }
+
+    reviews_by_source: dict[str, list[dict[str, str]]] = {}
+    for _, review_rows in clinical_sources:
+        for review in review_rows:
+            source_file = review.get("source_file", "").strip()
+            if source_file:
+                reviews_by_source.setdefault(source_file, []).append(review)
+
+    for match_file in match_files:
+        cohort = match_file.stem.removesuffix("_image_clinical_matches")
+        review_rows = reviews_by_source.get(match_file.name, [])
+        review_map = {}
+
+        for review in review_rows:
+            feature, value = _final_clinical_mapping(review, proceed)
+            original_feature = review.get("original_feature", "").strip()
+            original_value = review.get("original_value", "").strip()
+            if not feature or not value or not original_feature:
+                continue
+            key = (original_feature.casefold(), original_value.casefold())
+            review_map[key] = (feature, value)
+
+        _, match_rows = read_csv(match_file)
+        for match_row in match_rows:
+            image = match_row.get("image_path", "").strip()
+            if not image:
+                continue
+
+            for column, value in match_row.items():
+                if column in {"image_path", "image_name", "image_id"}:
+                    continue
+                value = value.strip()
+                if not value:
+                    continue
+                key = (column.casefold(), value.casefold())
+                mapping = review_map.get(key)
+                if mapping is None:
+                    continue
+
+                record = {
+                    "global_path": "",
+                    "relative_path": f"{project_name}/{image}",
+                    "Cohort": cohort,
+                    "Standardized Feature": mapping[0],
+                    "Standardized Value": mapping[1],
+                }
+                record_key = tuple(
+                    record[column] for column in IMAGE_CLINICAL_COLUMNS
+                )
+                if record_key not in existing:
+                    rows.append(record)
+                    existing.add(record_key)
+
+    rows.sort(
+        key=lambda row: (
+            row.get("Cohort", "").strip().casefold(),
+            row.get("relative_path", "").strip().casefold(),
             row.get("Standardized Feature", "").strip().casefold(),
             row.get("Standardized Value", "").strip().casefold(),
         )
     )
     write_csv(path, headers, rows)
+
+
+def update_global_image_register(
+    register_path: Path,
+    all_images_dir: Path,
+    project_dir: Path,
+    selected_images_dir: Path,
+    panel_map_path: Path,
+    image_clinical_path: Path,
+    project_name: str,
+    relative_images_dir: str,
+) -> None:
+    headers, rows = ensure_csv(register_path, IMAGE_REGISTER_COLUMNS)
+
+    existing_by_relative = {
+        row.get("relative_path", "").strip(): row
+        for row in rows
+        if row.get("relative_path", "").strip()
+    }
+    existing_by_global = {
+        row.get("global_path", "").strip(): row
+        for row in rows
+        if row.get("global_path", "").strip()
+    }
+
+    used_ordinals = {
+        int(Path(row.get("global_path", "")).stem)
+        for row in rows
+        if row.get("global_path", "").strip()
+        and Path(row.get("global_path", "")).stem.isdigit()
+    }
+    next_ordinal = max(used_ordinals, default=0) + 1
+
+    _, panel_map_rows = read_csv(panel_map_path)
+    panel_by_image = {
+        row.get("tiff_file", "").strip(): Path(
+            row.get("panel_file", "")
+        ).stem
+        for row in panel_map_rows
+        if row.get("tiff_file", "").strip()
+    }
+
+    _, image_clinical_rows = read_csv(image_clinical_path)
+    cohort_by_image = {}
+    for row in image_clinical_rows:
+        image = row.get("image", "").strip()
+        cohort = row.get("Cohort", "").strip()
+        if image and cohort:
+            cohort_by_image.setdefault(image, cohort)
+
+    all_images_dir.mkdir(parents=True, exist_ok=True)
+    image_paths = sorted(
+        (
+            path
+            for path in selected_images_dir.rglob("*")
+            if path.is_file()
+            and path.suffix.lower() in {".tif", ".tiff"}
+        ),
+        key=lambda path: str(path).casefold(),
+    )
+
+    for image_path in image_paths:
+        project_image_path = image_path.relative_to(
+            selected_images_dir
+        ).as_posix()
+        relative_path = (
+            f"{project_name}/{relative_images_dir}/{project_image_path}"
+        )
+
+        existing_row = existing_by_relative.get(relative_path)
+        if existing_row:
+            global_path = existing_row.get("global_path", "").strip()
+        else:
+            global_path = (
+                f"{all_images_dir.as_posix()}/{next_ordinal}.tiff"
+            )
+            next_ordinal += 1
+
+            selected_key = image_path.relative_to(project_dir).as_posix()
+
+            shape = []
+            try:
+                with tifffile.TiffFile(image_path) as tif:
+                    if tif.series:
+                        shape = list(tif.series[0].shape)
+            except Exception:
+                shape = []
+
+            row = {
+                "global_path": global_path,
+                "relative_path": relative_path,
+                "shape": str(shape),
+                "panel_name": panel_by_image.get(
+                    selected_key,
+                    "",
+                ),
+                "cohort_name": cohort_by_image.get(
+                    selected_key,
+                    "",
+                ),
+                "project_name": project_name,
+            }
+            rows.append(row)
+            existing_by_relative[relative_path] = row
+            existing_by_global[global_path] = row
+
+        symlink_path = all_images_dir / Path(global_path).name
+        if symlink_path.is_symlink() or symlink_path.exists():
+            continue
+        symlink_path.symlink_to(image_path.resolve())
+
+    rows.sort(
+        key=lambda row: (
+            row.get("project_name", "").strip().casefold(),
+            row.get("cohort_name", "").strip().casefold(),
+            row.get("panel_name", "").strip().casefold(),
+            row.get("relative_path", "").strip().casefold(),
+        )
+    )
+    write_csv(register_path, headers, rows)
+
+
+def add_paths_to_image_clinical(
+    image_clinical_path: Path,
+    image_register_path: Path,
+) -> None:
+    """Populate global_path/relative_path in the image-clinical file."""
+    headers, rows = ensure_csv(
+        image_clinical_path,
+        IMAGE_CLINICAL_COLUMNS,
+    )
+    headers = list(IMAGE_CLINICAL_COLUMNS)
+    rows = [
+        {column: row.get(column, "") for column in headers}
+        for row in rows
+    ]
+
+    register_headers, register_rows = read_csv(image_register_path)
+    register_by_image = {
+        row.get("relative_path", "").strip(): row
+        for row in register_rows
+        if row.get("relative_path", "").strip()
+    }
+
+    for row in rows:
+        relative_path = row.get("relative_path", "").strip()
+        register_row = register_by_image.get(relative_path)
+        if register_row is not None:
+            row["global_path"] = register_row.get(
+                "global_path",
+                "",
+            ).strip()
+            row["relative_path"] = register_row.get(
+                "relative_path",
+                "",
+            ).strip()
+
+    write_csv(image_clinical_path, headers, rows)
 
 
 def _panel_name_from_filename(path: Path) -> str:
@@ -314,6 +600,9 @@ def _panel_name_from_filename(path: Path) -> str:
     suffix = "_panel_parsed.csv"
     if name.startswith(prefix) and name.endswith(suffix):
         return name[len(prefix):-len(suffix)]
+
+    if name.endswith(".csv"):
+        return name[:-4]
 
     raise ValueError(f"Cannot determine panel from filename: {name}")
 
@@ -383,28 +672,41 @@ def update_global_marker_channels(
     extracted_marker_files: list[Path],
     marker_sources: list[tuple[Path, list[dict[str, str]]]],
 ) -> None:
-    _, marker_name_rows = ensure_csv(marker_names_path, MARKER_COLUMNS)
-    aliases_by_marker = {
-        row.get("Marker Name", "").strip():
-        row.get("Aliases", "").strip()
-        for row in marker_name_rows
-        if row.get("Marker Name", "").strip()
-    }
-
     panel_by_file = {
         path: _panel_name_from_filename(path)
         for path in extracted_marker_files
     }
 
     headers, rows = ensure_csv(
-        channel_path, ["Marker Name", "Comment", "Aliases"]
+        channel_path, ["Marker Name"]
     )
+    headers = [
+        header
+        for header in headers
+        if header not in {"Comment", "Aliases"}
+    ]
+    rows = [
+        {header: row.get(header, "") for header in headers}
+        for row in rows
+    ]
 
+    reused_columns: list[str] = []
     for panel in sorted(set(panel_by_file.values())):
         if panel not in headers:
             headers.append(panel)
             for row in rows:
                 row[panel] = ""
+        else:
+            reused_columns.append(panel)
+
+    if reused_columns:
+        typer.echo(
+            "Following panel names were already taken by "
+            "existing panels in the global files:\n"
+            f"{', '.join(reused_columns)}\n"
+            "Please go back to the examine manifest, rename "
+            "the file and redo the following steps."
+        )
 
     by_name = {
         row.get("Marker Name", "").strip(): row
@@ -448,7 +750,6 @@ def update_global_marker_channels(
                 by_name[standardized] = new_row
 
             target = by_name[standardized]
-            target["Aliases"] = aliases_by_marker.get(standardized, "")
             target[panel] = channel_number
 
     rows.sort(
@@ -484,7 +785,7 @@ def finalizer(
 
     if not marker_manifests:
         raise FileNotFoundError(
-            f"No marker review manifests found under {curate_dir}"
+            f"No marker review manifests found under {marker_manifests_dir}"
         )
 
     # Clinical tables are optional for a cohort.
@@ -516,21 +817,43 @@ def finalizer(
     _validate_final_mappings(marker_sources, clinical_sources, proceed)
 
 
-    marker_names_path = Path(config["curation"]["global_marker_names_path"])
-    marker_channels_path = Path(config["curation"]["global_marker_channels_path"])
-    clinical_values_path = Path(config["curation"]["global_clinical_values_path"])
+    marker_names_path = get_global_file_path(
+        config,
+        "global_marker_names_file",
+    )
+    marker_channels_path = get_global_file_path(
+        config,
+        "global_marker_channels_file",
+    )
+    clinical_values_path = get_global_file_path(
+        config,
+        "global_clinical_values_file",
+    )
+    image_clinical_path = get_global_file_path(
+        config,
+        "global_image_clinical_file",
+    )
+    image_register_path = get_global_file_path(
+        config,
+        "global_image_register_file",
+    )
+    all_images_dir = get_global_subdir(
+        config,
+        "global_images_subdir",
+    )
+    relative_images_dir = config["curation"]["relative_images_dir"]
 
     extracted_dir = (
-        project_dir / "curation_manifests" / "extract" / "markers"
+        project_dir / "metadata" / "markers" / "selected"
     )
     extracted_marker_files = sorted(
-        path for path in extracted_dir.glob("*_parsed.csv")
+        path for path in extracted_dir.glob("*.csv")
         if path.is_file()
     )
 
     if not extracted_marker_files:
         raise FileNotFoundError(
-            f"No parsed marker files found under {extracted_dir}"
+            f"No selected marker files found under {extracted_dir}"
         )
 
     all_marker_rows = [
@@ -548,6 +871,46 @@ def finalizer(
         cohort=name,
         proceed=proceed,
     )
+    clinical_match_files = sorted(
+        (
+            project_dir
+            / "metadata"
+            / "clinical"
+            / "selected"
+        ).glob("*_image_clinical_matches.csv")
+    )
+    update_global_image_clinical(
+        image_clinical_path,
+        clinical_match_files,
+        clinical_sources,
+        project_name=name,
+        relative_images_dir=relative_images_dir,
+        proceed=proceed,
+    )
+    selected_images_dir = (
+        project_dir
+        / config["project_file_system"]["selected_images_dir"]
+    )
+    panel_map_path = (
+        project_dir
+        / "curation_manifests"
+        / "extract"
+        / "image_panel_map.csv"
+    )
+    update_global_image_register(
+        image_register_path,
+        all_images_dir,
+        project_dir,
+        selected_images_dir,
+        panel_map_path,
+        image_clinical_path,
+        project_name=name,
+        relative_images_dir=relative_images_dir,
+    )
+    add_paths_to_image_clinical(
+        image_clinical_path,
+        image_register_path,
+    )
     update_global_marker_channels(
         marker_channels_path,
         marker_names_path,
@@ -555,7 +918,7 @@ def finalizer(
         marker_sources,
     )
 
-    typer.echo(f"Finalization completed for cohort: {name}")
+    typer.echo(f"Finalization completed for project: {name}")
     typer.echo(f"Marker manifests processed: {len(marker_manifests)}")
     typer.echo(f"Clinical manifests processed: {len(clinical_manifests)}")
     typer.echo(f"Marker tables processed: {len(extracted_marker_files)}")

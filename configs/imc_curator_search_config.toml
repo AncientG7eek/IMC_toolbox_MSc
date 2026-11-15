@@ -21,7 +21,7 @@ extensions = [".csv", ".docx", ".pdf", ".xls", ".xlsx"]
 strong_positive_keywords = ["clinical", "patient", "donor"]
 weak_positive_keywords = ["cli"]
 negative_keywords = ["marker", "channel", "antibody"]
-destination = "metadata/clinical"
+destination = "metadata/clinical/unpacked"
 
 [categories.raw_imc_data]
 extensions = [".mcd", ".txt"]

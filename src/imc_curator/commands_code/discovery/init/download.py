@@ -3,7 +3,8 @@ from shutil import copytree
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
 from zipfile import ZipFile
-from shutil import copy2, copytree
+from shutil import copy2
+from typing import TYPE_CHECKING
 from rich.progress import (
     Progress,
     BarColumn,
@@ -15,6 +16,9 @@ from rich.progress import (
 )
 
 from imc_curator.config import get_archive_extensions
+
+if TYPE_CHECKING:
+    from imc_curator.progress_bar import ProgressManager
 
 
 archive_extensions = get_archive_extensions()
@@ -83,6 +87,7 @@ def download(
 def extract_zip(
     archive_path: Path,
     destination: Path,
+    progress: "ProgressManager | None" = None,
 ) -> Path:
     """
     Extract a ZIP archive into destination.
@@ -104,7 +109,19 @@ def extract_zip(
     )
 
     with ZipFile(archive_path) as archive:
-        archive.extractall(destination)
+        members = archive.infolist()
+        member_iterable = (
+            progress.track(
+                members,
+                description="Extracting archive",
+                total=len(members),
+                item_description=lambda member: member.filename,
+            )
+            if progress
+            else members
+        )
+        for member in member_iterable:
+            archive.extract(member, destination)
 
     return destination
 
@@ -112,6 +129,7 @@ def extract_zip(
 def import_local_directory(
     source: Path,
     destination: Path,
+    progress: "ProgressManager | None" = None,
 ) -> Path:
     """
     Copy a local dataset directory into destination.
@@ -132,11 +150,25 @@ def import_local_directory(
         exist_ok=True,
     )
 
-    copytree(
-        source,
-        destination,
-        dirs_exist_ok=True,
+    files = [
+        path
+        for path in source.rglob("*")
+        if path.is_file()
+    ]
+    file_iterable = (
+        progress.track(
+            files,
+            description="Copying local directory",
+            total=len(files),
+            item_description=lambda path: path.name,
+        )
+        if progress
+        else files
     )
+    for file_path in file_iterable:
+        target = destination / file_path.relative_to(source)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        copy2(file_path, target)
 
     return destination
 
@@ -144,6 +176,7 @@ def import_local_directory(
 def import_local_archive(
     source: Path,
     destination: Path,
+    progress: "ProgressManager | None" = None,
 ) -> Path:
     """
     Extract a local archive into destination.
@@ -167,12 +200,14 @@ def import_local_archive(
     return extract_zip(
         archive_path=source,
         destination=destination,
+        progress=progress,
     )
 
 
 def import_local(
     source: Path,
     destination: Path,
+    progress: "ProgressManager | None" = None,
 ) -> Path:
     """
     Import a local dataset.
@@ -191,12 +226,14 @@ def import_local(
         return import_local_directory(
             source=source,
             destination=destination,
+            progress=progress,
         )
 
     if source.is_file():
         return import_local_archive(
             source=source,
             destination=destination,
+            progress=progress,
         )
 
     raise ValueError(

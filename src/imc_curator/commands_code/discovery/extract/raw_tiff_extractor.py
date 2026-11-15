@@ -75,12 +75,14 @@ def _load_kept_metals(markers_dir: Path) -> dict[str, set[str]]:
 def extract_raw_tiffs(
     project_dir: Path,
     markers_dir: Path,
+    images_output_dir: Path,
     selected_images_dir: Path,
     progress: "ProgressManager | None" = None,
 ) -> str:
     """Write MCD TIFFs for kept panel channels."""
     project_dir = project_dir.resolve()
     markers_dir = markers_dir.expanduser().resolve()
+    images_output_dir = images_output_dir.expanduser().resolve()
     selected_images_dir = selected_images_dir.expanduser().resolve()
 
     assignments = _load_assignments(markers_dir)
@@ -143,16 +145,16 @@ def extract_raw_tiffs(
                             f"_slide{slide.id}"
                             f"_acq{acquisition.id}.tiff"
                         )
-                        tiff_path = (
-                            selected_images_dir
+                        lookup_path = (
+                            images_output_dir
                             / _safe_stem(mcd_path.parent.name)
                             / output_name
                         )
-                        relative_tiff_path = _project_relative(
-                            tiff_path,
+                        lookup_key = _project_relative(
+                            lookup_path,
                             project_dir,
                         )
-                        panel_id = panel_by_image.get(relative_tiff_path)
+                        panel_id = panel_by_image.get(lookup_key)
                         if panel_id is None:
                             continue
 
@@ -164,8 +166,8 @@ def extract_raw_tiffs(
                         names = list(acquisition.channel_names)
                         selected_indices = [
                             index
-                            for index, label in enumerate(labels)
-                            if label in kept_labels
+                            for index, name in enumerate(names)
+                            if name in kept_labels
                         ]
 
                         if not selected_indices:
@@ -184,6 +186,11 @@ def extract_raw_tiffs(
                             )
 
                         selected_image = image[selected_indices, :, :]
+                        tiff_path = (
+                            selected_images_dir
+                            / _safe_stem(mcd_path.parent.name)
+                            / output_name
+                        )
                         tiff_path.parent.mkdir(parents=True, exist_ok=True)
                         tifffile.imwrite(
                             tiff_path,

@@ -54,6 +54,9 @@ def create_panel_review(
 #   1 = keep this channel
 #   0 = reject this channel
 
+[panel]
+name = ''
+
 [source]
 path = {_toml_string(source_path)}
 review_csv = {_toml_string(review_reference)}
@@ -70,6 +73,9 @@ metal_isotope_regex = ''
 #
 # PURPOSE
 # Review a standalone marker-panel table.
+
+[panel]
+name = ''
 
 [source]
 path = {_toml_string(source_path)}

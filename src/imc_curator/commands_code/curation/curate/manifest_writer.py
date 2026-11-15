@@ -104,12 +104,22 @@ def write_clinical_manifest(
                 for candidate in candidates
             ))
 
-            candidate_text = " | ".join(
-                f'{candidate["standardized_feature"]}='
-                f'{candidate["standardized_value"]} '
-                f'(cohort: {candidate.get("cohort", "")})'
-                for candidate in candidates
-            )
+            candidate_parts = []
+            for pair in standardized_pairs:
+                feature_part, value_part = pair
+                cohorts = list(dict.fromkeys(
+                    candidate.get("cohort", "")
+                    for candidate in candidates
+                    if (
+                        candidate["standardized_feature"] == feature_part
+                        and candidate["standardized_value"] == value_part
+                    )
+                ))
+                candidate_parts.append(
+                    f"{feature_part}={value_part} "
+                    f'(cohorts: {", ".join(cohorts)})'
+                )
+            candidate_text = " | ".join(candidate_parts)
 
             if not standardized_pairs:
                 action = "ADD_NEW_ENTITY"
@@ -133,6 +143,7 @@ def write_clinical_manifest(
 
             manifest_rows.append({
                 "source_file": clinical_input["source_file"],
+                "cohort": clinical_input.get("cohort_name", ""),
                 "original_feature": feature,
                 "original_value": original_value,
                 "candidate_mappings": candidate_text,
@@ -147,6 +158,7 @@ def write_clinical_manifest(
 
     fieldnames = [
         "source_file",
+        "cohort",
         "original_feature",
         "original_value",
         "candidate_mappings",

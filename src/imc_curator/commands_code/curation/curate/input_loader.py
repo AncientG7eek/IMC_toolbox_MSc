@@ -184,6 +184,7 @@ def load_extracted_clinical(
 
     return {
         "source_file": path.name,
+        "cohort_name": path.stem.removesuffix("_image_clinical_matches"),
         "path": path,
         "rows": rows,
         "matches": matches,

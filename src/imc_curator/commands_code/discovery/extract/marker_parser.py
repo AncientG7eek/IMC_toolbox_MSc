@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import tomli_w
 from imc_curator.commands_code.discovery.signature import (
     build_panel_id,
     build_panel_signature,
@@ -76,6 +77,22 @@ def _scalar(value: object) -> object:
     return value
 
 
+def _safe_panel_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._")
+    return cleaned
+
+
+def _source_type(source_path: str) -> str:
+    path = str(source_path or "").strip()
+    if path.startswith("metadata/markers/unpacked/"):
+        return "csv"
+    if path.startswith("data/raw/unpacked/"):
+        return "ome"
+    if path.startswith("metadata/raw_imc_data/"):
+        return "mcd"
+    return "unknown"
+
+
 def extract_marker_tables(
     project_dir: Path,
     forms_dir: Path,
@@ -138,6 +155,8 @@ def extract_marker_tables(
         form = _read_form(form_path)
         source_config = form.get("source", {})
         parsing_config = form.get("marker_parsing", {})
+        panel_config = form.get("panel", {})
+        requested_name = str(panel_config.get("name", "") or "").strip()
 
         review_csv = _resolve_path(
             source_config["review_csv"],
@@ -282,6 +301,44 @@ def extract_marker_tables(
             parsed_table["panel_id"] = panel_id
             parsed_table["panel_signature"] = panel_signature
 
+        pre_biological_markers = [
+            _scalar(value)
+            for value in marker_table[marker_column]
+        ]
+        pre_metal_isotopes = [
+            _scalar(value)
+            for value in marker_table[metal_column]
+        ] if metal_column and metal_column in marker_table.columns else []
+
+        pre_signature_records = []
+        for _, row in marker_table.iterrows():
+            raw_marker = _scalar(row.get(marker_column, ""))
+            raw_metal = _scalar(
+                row.get(metal_column, "")
+                if metal_column and metal_column in marker_table.columns
+                else ""
+            )
+            pre_signature_records.append(
+                {
+                    "biological_marker": raw_marker,
+                    "raw_name": raw_marker,
+                    "raw_fluor": raw_metal,
+                    "metal_ion": raw_metal,
+                    "channel_number": row.get(channel_column, 0)
+                    if channel_column and channel_column in marker_table.columns
+                    else 0,
+                }
+            )
+
+        pre_signature = format_panel_signature(
+            build_panel_signature(
+                pre_signature_records,
+                marker_key="biological_marker",
+                raw_name_key="raw_name",
+                raw_fluor_key="raw_fluor",
+            )
+        )
+
         if selected_panels_dir is not None and not parsed_table.empty:
             panel_rows = []
             for _, row in parsed_table.iterrows():
@@ -298,15 +355,61 @@ def extract_marker_tables(
                     }
                 )
 
-            panel_path = selected_panels_dir / f"{panel_id}.csv"
+            safe_name = _safe_panel_name(requested_name)
+            output_stem = safe_name or panel_id
+            panel_path = selected_panels_dir / f"{output_stem}.csv"
             pd.DataFrame(panel_rows, columns=PANEL_COLUMNS).to_csv(
                 panel_path,
                 index=False,
             )
 
+            source_key = f"{form_path.parent.name}.csv"
+            image_paths = images_by_marker.get(source_key, [])
+
+            post_biological_markers = [
+                str(row["biological_marker"])
+                for row in panel_rows
+            ]
+            post_metal_isotopes = [
+                str(row["metal_isotope"])
+                for row in panel_rows
+            ]
+
+            info_dir = (
+                project_dir
+                / "curation_manifests"
+                / "extract"
+                / "markers"
+            )
+            info_dir.mkdir(parents=True, exist_ok=True)
+            info_path = info_dir / f"{output_stem}.toml"
+
+            info_data = {
+                "name": safe_name or "",
+                "hash_id": form_path.parent.name.removeprefix("panel_"),
+                "source_file": str(source_config.get("path", "")),
+                "source_type": _source_type(source_config.get("path", "")),
+                "images": image_paths,
+                "pre_selection": {
+                    "biological_markers": [
+                        str(value) for value in pre_biological_markers
+                    ],
+                    "metal_isotopes": [
+                        str(value) for value in pre_metal_isotopes
+                    ],
+                    "panel_signature": pre_signature,
+                },
+                "post_selection": {
+                    "biological_markers": post_biological_markers,
+                    "metal_isotopes": post_metal_isotopes,
+                    "panel_signature": panel_signature,
+                },
+            }
+            info_path.write_bytes(
+                tomli_w.dumps(info_data).encode("utf-8")
+            )
+
             if panel_map_path is not None:
-                source_key = f"{form_path.parent.name}.csv"
-                image_paths = images_by_marker.get(source_key, [])
                 map_rows = []
 
                 for image_path in image_paths:
@@ -320,7 +423,7 @@ def extract_marker_tables(
                             "panel_signature": panel_signature,
                             "panel_file": selected_panel_file(
                                 selected_panels_dir,
-                                panel_id,
+                                output_stem,
                                 project_dir,
                             ),
                         }
