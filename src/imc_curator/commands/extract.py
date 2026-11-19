@@ -9,19 +9,19 @@ from imc_curator.config import (
     get_panels_dir,
     load_config,
 )
-from imc_curator.commands_code.discovery.extract.marker_parser import (
+from imc_curator.services.discovery.extract.marker_parser import (
     extract_marker_tables,
 )
-from imc_curator.commands_code.discovery.extract.clinical_parser import (
+from imc_curator.services.discovery.extract.clinical_parser import (
     extract_clinical_tables,
 )
-from imc_curator.commands_code.discovery.extract.raw_tiff_extractor import (
+from imc_curator.services.discovery.extract.raw_tiff_extractor import (
     extract_raw_tiffs,
 )
-from imc_curator.commands_code.discovery.extract.subset_tiffs import (
+from imc_curator.services.discovery.extract.subset_tiffs import (
     subset_images,
 )
-from imc_curator.commands_code.discovery.extract.panel_map import (
+from imc_curator.services.discovery.extract.panel_map import (
     init_panel_map,
     remap_tiff_files,
 )

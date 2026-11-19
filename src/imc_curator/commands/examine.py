@@ -2,13 +2,13 @@
 from pathlib import Path
 import typer
 
-from imc_curator.commands_code.discovery.examine.ome_parser import (
+from imc_curator.services.discovery.examine.ome_parser import (
     examine_ome_metadata,
 )
-from imc_curator.commands_code.discovery.examine.csv_parser import (
+from imc_curator.services.discovery.examine.csv_parser import (
     examine_marker_and_clinical_tables,
 )
-from imc_curator.commands_code.discovery.examine.mcd_parser import (
+from imc_curator.services.discovery.examine.mcd_parser import (
     examine_mcd_files
 )
 from imc_curator.config import (

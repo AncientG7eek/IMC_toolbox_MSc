@@ -7,9 +7,14 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from imc_curator.config import get_projects_dir, load_search_config
-from imc_curator.commands_code.discovery.populate.load_report import load_manifest
-from imc_curator.commands_code.discovery.populate.populate import materialize_category
+from imc_curator.config import (
+    get_projects_dir,
+    get_raw_source_dir,
+    load_config,
+    load_search_config,
+)
+from imc_curator.services.discovery.populate.load_report import load_manifest
+from imc_curator.services.discovery.populate.populate import materialize_category
 from imc_curator.completion import complete_datasets
 
 
@@ -26,12 +31,16 @@ def populate(
     ),
 ) -> None:
     
+    config = load_config()
     projects_dir = get_projects_dir()
     project_dir = projects_dir / name
 
     inputs = load_manifest(project_dir=project_dir, command="inspect")
     
-    raw_dir = project_dir / "data" / "raw" / "source"
+    raw_dir = get_raw_source_dir(
+        project_dir=project_dir,
+        config=config,
+    )
 
     # Collect categories that actually need to be populated.
     categories_to_populate = [

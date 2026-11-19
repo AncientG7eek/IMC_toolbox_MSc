@@ -229,6 +229,9 @@ def get_processed_images_dir(project_dir: Path, config: dict) -> Path:
 def get_unpacked_images_dir(project_dir: Path, config: dict) -> Path:
     return project_dir / config["project_file_system"]["unpacked_images_dir"]
 
+def get_raw_source_dir(project_dir: Path, config: dict) -> Path:
+    return project_dir / config["project_file_system"]["raw_source_dir"]
+
 def get_selected_images_dir(project_dir: Path, config: dict) -> Path:
     return project_dir / config["project_file_system"]["selected_images_dir"]
 

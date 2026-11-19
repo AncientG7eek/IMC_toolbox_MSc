@@ -2,9 +2,9 @@ from pathlib import Path
 
 import typer
 
-from imc_curator.config import get_projects_dir
-from imc_curator.commands_code.discovery.inspect.report import write_manifest
-from imc_curator.commands_code.discovery.inspect.scanner import discover
+from imc_curator.config import get_projects_dir, get_raw_source_dir, load_config
+from imc_curator.services.discovery.inspect.report import write_manifest
+from imc_curator.services.discovery.inspect.scanner import discover
 from imc_curator.file_tree_plotting import save_manifest_tree
 from imc_curator.completion import complete_datasets
 
@@ -19,6 +19,7 @@ def inspect(
 ):
     """Inspect the source dataset and generate a manifest."""
 
+    config = load_config()
     projects_dir = get_projects_dir()
     project_dir = projects_dir / name
 
@@ -27,11 +28,9 @@ def inspect(
             f"Project does not exist: {project_dir}"
         )
 
-    source_dir = (
-        project_dir
-        / "data"
-        / "raw"
-        / "source"
+    source_dir = get_raw_source_dir(
+        project_dir=project_dir,
+        config=config,
     )
 
     if not source_dir.exists():

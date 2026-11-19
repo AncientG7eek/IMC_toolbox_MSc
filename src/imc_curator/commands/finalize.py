@@ -1,7 +1,8 @@
 import typer
 
-from imc_curator.commands_code.curation.finalize.finalize import finalizer
+from imc_curator.services.curation.finalize.finalize import finalizer
 from imc_curator.completion import complete_datasets
+from imc_curator.progress_bar import ProgressManager
 
 def finalize(
     name: str = typer.Argument(
@@ -15,4 +16,6 @@ def finalize(
     on the cohort and panel levels get appended with 
     information from this curation project."""
 
-    finalizer(name=name)
+    with ProgressManager() as progress:
+        with progress.stage("Finalizing project"):
+            finalizer(name=name)

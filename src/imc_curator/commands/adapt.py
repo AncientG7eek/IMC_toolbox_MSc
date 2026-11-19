@@ -1,7 +1,7 @@
 import typer
 
-from imc_curator.commands_code.adapt.base import ModelConfig
-from imc_curator.commands_code.adapt.immuvis import ImmuvisConfig
+from imc_curator.services.adapt.base import ModelConfig
+from imc_curator.services.adapt.immuvis import ImmuvisConfig
 from imc_curator.completion import complete_models
 
 

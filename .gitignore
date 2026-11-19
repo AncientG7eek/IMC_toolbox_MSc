@@ -3,3 +3,5 @@ test1/
 test2/
 visualize/images
 configs/global_files/
+__pycache__/
+*.pyc

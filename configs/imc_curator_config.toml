@@ -1,6 +1,7 @@
 projects_dir = "/raid_encrypted/immucan/kacpie/data/projects"
 
 [project_file_system]
+raw_source_dir = "data/raw/source"
 unpacked_images_dir = "data/raw/unpacked"
 selected_images_dir = "data/raw/selected"
 processed_images_dir = "data/processed"

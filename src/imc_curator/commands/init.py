@@ -3,9 +3,9 @@ import typer
 from urllib.parse import urlparse
 
 
-from imc_curator.config import get_projects_dir
-from imc_curator.commands_code.discovery.init.download import download, import_local
-from imc_curator.commands_code.discovery.init.project import init_project
+from imc_curator.config import get_projects_dir, get_raw_source_dir, load_config
+from imc_curator.services.discovery.init.download import download, import_local
+from imc_curator.services.discovery.init.project import init_project
 from imc_curator.progress_bar import ProgressManager
 
 
@@ -34,6 +34,7 @@ def init(
 ):
     """Initialize a new IMC dataset project."""
 
+    config = load_config()
     projects_dir = get_projects_dir()
 
     project_dir = init_project(
@@ -41,11 +42,9 @@ def init(
         projects_dir=projects_dir,
     )
 
-    source_dir = (
-        project_dir
-        / "data"
-        / "raw"
-        / "source"
+    source_dir = get_raw_source_dir(
+        project_dir=project_dir,
+        config=config,
     )
 
     local_source = Path(source).expanduser()
