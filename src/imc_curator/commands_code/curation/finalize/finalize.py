@@ -1,5 +1,6 @@
 
 import csv
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -589,6 +590,49 @@ def add_paths_to_image_clinical(
     write_csv(image_clinical_path, headers, rows)
 
 
+def split_register_rows(
+    rows: list[dict[str, str]],
+    train_ratio: float = 0.8,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Split register rows into train and test sets."""
+    train_count = int(len(rows) * train_ratio)
+    return rows[:train_count], rows[train_count:]
+
+
+def update_global_image_split(
+    split_dir: Path,
+    all_images_dir: Path,
+    register_path: Path,
+) -> None:
+    """Create train/test symlink folders that mirror all_images ordinals."""
+    _, rows = read_csv(register_path)
+    train_rows, test_rows = split_register_rows(rows)
+
+    for subset, subset_rows in (
+        ("train", train_rows),
+        ("test", test_rows),
+    ):
+        for row in subset_rows:
+            panel_name = row.get("panel_name", "").strip() or "unassigned"
+            global_name = Path(
+                row.get("global_path", "").strip()
+            ).name
+            if not global_name:
+                continue
+
+            source_symlink = all_images_dir / global_name
+            if not source_symlink.is_symlink():
+                continue
+
+            destination = (
+                split_dir / subset / panel_name / global_name
+            )
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.is_symlink() or destination.exists():
+                destination.unlink()
+            destination.symlink_to(source_symlink.resolve())
+
+
 def _panel_name_from_filename(path: Path) -> str:
     """Handle current parsed names and the older marker-parser convention."""
     name = path.name
@@ -841,6 +885,10 @@ def finalizer(
         config,
         "global_images_subdir",
     )
+    global_split_dir = get_global_subdir(
+        config,
+        "global_split_subdir",
+    )
     relative_images_dir = config["curation"]["relative_images_dir"]
 
     extracted_dir = (
@@ -911,12 +959,35 @@ def finalizer(
         image_clinical_path,
         image_register_path,
     )
+    update_global_image_split(
+        global_split_dir,
+        all_images_dir,
+        image_register_path,
+    )
     update_global_marker_channels(
         marker_channels_path,
         marker_names_path,
         extracted_marker_files,
         marker_sources,
     )
+
+    answer = typer.prompt(
+        "The final image files are under data/raw/selected. Files in "
+        "data/raw/source and data/raw/unpacked are redundant at this "
+        "point. Do you want to delete them? Yes/no",
+        default="yes",
+        show_default=False,
+    )
+    if answer.strip().lower() in {"yes", "y"}:
+        unpacked_dir = (
+            project_dir
+            / config["project_file_system"]["unpacked_images_dir"]
+        )
+        source_dir = project_dir / "data" / "raw" / "source"
+        for directory in (source_dir, unpacked_dir):
+            if directory.is_dir():
+                shutil.rmtree(directory)
+                typer.echo(f"Deleted {directory}")
 
     typer.echo(f"Finalization completed for project: {name}")
     typer.echo(f"Marker manifests processed: {len(marker_manifests)}")

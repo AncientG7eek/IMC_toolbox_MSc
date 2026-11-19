@@ -3,6 +3,9 @@ import typer
 from imc_curator.config import get_projects_dir
 
 
+MODEL_NAMES = ["immuvis"]
+
+
 def complete_datasets(
     ctx: typer.Context,
     args: list[str],
@@ -21,3 +24,16 @@ def complete_datasets(
         if directory.is_dir()
         and directory.name.startswith(incomplete)
     )
+
+
+def complete_models(
+    ctx: typer.Context,
+    args: list[str],
+    incomplete: str,
+) -> list[str]:
+    """Autocomplete registered model names."""
+    return [
+        name
+        for name in MODEL_NAMES
+        if name.startswith(incomplete)
+    ]

@@ -355,6 +355,18 @@ def extract_marker_tables(
                     }
                 )
 
+            panel_rows.sort(
+                key=lambda row: str(
+                    row["biological_marker"]
+                ).casefold()
+            )
+            source_channel_numbers = [
+                str(row["channel_number"])
+                for row in panel_rows
+            ]
+            for index, row in enumerate(panel_rows):
+                row["channel_number"] = index
+
             safe_name = _safe_panel_name(requested_name)
             output_stem = safe_name or panel_id
             panel_path = selected_panels_dir / f"{output_stem}.csv"
@@ -403,6 +415,7 @@ def extract_marker_tables(
                     "biological_markers": post_biological_markers,
                     "metal_isotopes": post_metal_isotopes,
                     "panel_signature": panel_signature,
+                    "source_channel_numbers": source_channel_numbers,
                 },
             }
             info_path.write_bytes(

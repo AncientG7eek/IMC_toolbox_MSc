@@ -1,0 +1,154 @@
+paths:
+  train: /raid_encrypted/immucan/immuvis_split_patches_onlyarcsinh/train
+  test: /raid_encrypted/immucan/immuvis_split_patches_onlyarcsinh/test
+datasets:
+- baker_2026
+- ira_2026
+- merkus_2026_p1
+- merkus_2026_p2
+clip_limits:
+  baker_2026: 1.0
+  ira_2026: 1.0
+  merkus_2026_p1: 1.0
+  merkus_2026_p2: 1.0
+marker_stats: marker_ds_stats.csv
+markers:
+  ira_2026:
+  - CD45
+  - CD68
+  - HLADR
+  - SMA
+  - CD15
+  - CTLA4
+  - CD14
+  - CD3
+  - ki67
+  - CD163
+  - PanKer
+  - CD11b
+  - PDL1
+  - CD31
+  - CCL4
+  - TREM2
+  - Tim3
+  - FoxP3
+  - CD4
+  - Lag3
+  - TIGIT
+  - CD11c
+  - Tbet
+  - CD20
+  - CD8a
+  - VEGF
+  - CytC
+  - PD1
+  - CD204
+  - GranzymeB
+  - CCL2
+  - Collagen1
+  - CD103
+  - APOE
+  - CD38
+  - CD45RO
+  - S100
+  - CD34
+  - cCasp3
+  - HH3
+  - Vimentin
+  - ECadherin
+  merkus_2026_p1:
+  - Bcatenin
+  - TGFb
+  - HLA-DR
+  - CD20
+  - CD68
+  - CD11b
+  - CD4
+  - CD8a
+  - CD31
+  - TCRgd
+  - CD45
+  - Granzyme B
+  - CD57
+  - Ki-67
+  - CD3
+  - P16ink4a
+  - cleavedcaspase
+  - PDL1
+  - CD39
+  - VISTA
+  - FOXP3
+  - PD-1
+  - ICOS
+  - IDO
+  - CD14
+  - CD204
+  - CD45RO
+  - D2-40
+  - CD56
+  - CD103
+  - CD38
+  - Tbet
+  - CD15
+  - CD19
+  - CD163
+  - CD7
+  - CD27
+  - CD11c
+  - DNA1
+  - DNA2
+  - Vimentin
+  - Keratin
+  - Histone
+  merkus_2026_p2:
+  - Bcatenin
+  - TGFb
+  - HLA-DR
+  - CD20
+  - CD68
+  - CD11b
+  - CD4
+  - CD8a
+  - CD31
+  - TCRgd
+  - CD45
+  - Granzyme B
+  - CD57
+  - Ki-67
+  - CD3
+  - P16ink4a
+  - cleavedcaspase
+  - PDL1
+  - CD39
+  baker_2026:
+  - aSMA
+  - Calbindin
+  - MBP
+  - TNFa
+  - Nestin
+  - bCatenin
+  - CD163
+  - CD31
+  - Vimentin
+  - Umod
+  - VCAM1
+  - IL9
+  - Podoplanin
+  - FACL4
+  - CD4
+  - LC3B
+  - CD68
+  - KIM1
+  - CD20
+  - CD8a
+  - CD206
+  - CK7
+  - Chymase
+  - ERG
+  - CD11c
+  - Ki67
+  - Mcp1
+  - CD3
+  - MPO
+  - Aqp1
+  - Megalin

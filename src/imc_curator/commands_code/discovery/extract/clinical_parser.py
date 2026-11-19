@@ -34,6 +34,23 @@ def _read_form(form_path: Path) -> dict:
         return tomllib.load(form_file)
 
 
+def _read_csv_table(path: Path) -> pd.DataFrame:
+    try:
+        return pd.read_csv(
+            path,
+            encoding="utf-8-sig",
+            sep=None,
+            engine="python",
+        )
+    except UnicodeDecodeError:
+        return pd.read_csv(
+            path,
+            encoding="latin-1",
+            sep=None,
+            engine="python",
+        )
+
+
 def _extract_id(value: object, pattern: str) -> str | None:
     """Extract an identifier using the first regex capture group."""
     if pd.isna(value):
@@ -86,8 +103,9 @@ def extract_clinical_tables(
         return f"No clinical TOML forms found in:\n  {forms_dir}"
 
     if not images_dir.is_dir():
-        raise FileNotFoundError(
-            f"Populated images directory was not found:\n  {images_dir}"
+        return (
+            "Clinical extraction skipped: populated images directory "
+            f"was not found:\n  {images_dir}"
         )
 
     image_paths = sorted(
@@ -175,8 +193,8 @@ def extract_clinical_tables(
                     f"  {csv_path}"
                 )
 
-        clinical_table = pd.read_csv(source_csv)
-        review_table = pd.read_csv(review_csv)
+        clinical_table = _read_csv_table(source_csv)
+        review_table = _read_csv_table(review_csv)
 
         if identifier_column not in clinical_table.columns:
             raise ValueError(

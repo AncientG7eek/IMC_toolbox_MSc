@@ -44,8 +44,8 @@ def _load_assignments(markers_dir: Path) -> dict[str, list[str]]:
     }
 
 
-def _load_kept_metals(markers_dir: Path) -> dict[str, set[str]]:
-    kept: dict[str, set[str]] = {}
+def _load_kept_metals(markers_dir: Path) -> dict[str, list[tuple[str, str]]]:
+    kept: dict[str, list[tuple[str, str]]] = {}
     for panel_dir in markers_dir.iterdir():
         if not panel_dir.is_dir():
             continue
@@ -54,7 +54,7 @@ def _load_kept_metals(markers_dir: Path) -> dict[str, set[str]]:
         if not review_csv.is_file():
             continue
 
-        kept_labels = set()
+        kept_rows = []
         with review_csv.open(
             "r",
             encoding="utf-8-sig",
@@ -65,9 +65,13 @@ def _load_kept_metals(markers_dir: Path) -> dict[str, set[str]]:
                     continue
                 label = str(row.get("metal_isotope", "")).strip()
                 if label:
-                    kept_labels.add(label)
+                    marker = str(
+                        row.get("biological_marker", "")
+                    ).strip()
+                    kept_rows.append((label, marker))
 
-        kept[panel_dir.name] = kept_labels
+        kept_rows.sort(key=lambda item: item[1].casefold())
+        kept[panel_dir.name] = kept_rows
 
     return kept
 
@@ -158,16 +162,20 @@ def extract_raw_tiffs(
                         if panel_id is None:
                             continue
 
-                        kept_labels = kept_metals_by_panel.get(
+                        kept_rows = kept_metals_by_panel.get(
                             panel_id,
-                            set(),
+                            [],
                         )
                         labels = list(acquisition.channel_labels)
                         names = list(acquisition.channel_names)
-                        selected_indices = [
-                            index
+                        name_to_index = {
+                            name: index
                             for index, name in enumerate(names)
-                            if name in kept_labels
+                        }
+                        selected_indices = [
+                            name_to_index[metal]
+                            for metal, marker in kept_rows
+                            if metal in name_to_index
                         ]
 
                         if not selected_indices:

@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import csv
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 import tifffile
+
+from imc_curator.commands_code.discovery.examine.submodules.extract_ome_channels import (
+    extract_tiff_metadata,
+)
+from imc_curator.commands_code.discovery.examine.submodules.ome_panel_parser import (
+    load_regex_rules,
+    parse_channel,
+)
 
 if TYPE_CHECKING:
     from imc_curator.progress_bar import ProgressManager
@@ -20,6 +29,31 @@ def _read_panel_channels(panel_path: Path) -> list[dict[str, str]]:
         newline="",
     ) as file:
         return [dict(row) for row in csv.DictReader(file)]
+
+
+def _read_source_channel_numbers(
+    project_dir: Path,
+    panel_file: str,
+) -> list[int]:
+    stem = Path(panel_file).stem
+    info_path = (
+        project_dir
+        / "curation_manifests"
+        / "extract"
+        / "markers"
+        / f"{stem}.toml"
+    )
+    if not info_path.is_file():
+        return []
+
+    with info_path.open("rb") as file:
+        data = tomllib.load(file)
+
+    values = data.get("post_selection", {}).get(
+        "source_channel_numbers",
+        [],
+    )
+    return [int(value) for value in values]
 
 
 def _read_tiff_stack(tiff_path: Path) -> np.ndarray:
@@ -38,6 +72,71 @@ def _read_tiff_stack(tiff_path: Path) -> np.ndarray:
 
         arrays = [page.asarray() for page in pages]
         return np.stack(arrays, axis=0)
+
+
+def _sorted_channel_indices(
+    tiff_path: Path,
+    panel_channels: list[dict[str, str]],
+) -> tuple[list[int], list[str], list[str]]:
+    channels, _ = extract_tiff_metadata(
+        tiff_path,
+        tiff_path.parent,
+    )
+    rules = load_regex_rules()
+    parsed_channels = [
+        parse_channel(channel, rules)
+        for channel in channels
+    ]
+
+    indices: list[int] = []
+    labels: list[str] = []
+    names: list[str] = []
+    for panel_channel in panel_channels:
+        marker = panel_channel.get("biological_marker", "").strip()
+        metal = panel_channel.get("metal_isotope", "").strip()
+        raw_channel = None
+        for index, parsed in enumerate(parsed_channels):
+            if index in indices:
+                continue
+            parsed_marker = str(
+                parsed.get("biological_marker") or ""
+            ).strip()
+            parsed_metal = str(
+                parsed.get("metal_ion") or ""
+            ).strip()
+            raw_name = str(
+                parsed.get("raw_name") or ""
+            ).strip()
+            raw_fluor = str(
+                parsed.get("raw_fluor") or ""
+            ).strip()
+
+            marker_matches = (
+                marker.casefold()
+                in {parsed_marker.casefold(), raw_name.casefold()}
+            )
+            metal_matches = (
+                not metal
+                or metal.casefold()
+                in {parsed_metal.casefold(), raw_fluor.casefold()}
+            )
+            if marker_matches and metal_matches:
+                raw_channel = parsed
+                break
+
+        if raw_channel is None:
+            continue
+
+        index = int(raw_channel.get("channel_number", -1))
+        if index < 0 or index in indices:
+            continue
+        indices.append(index)
+        labels.append(
+            str(raw_channel.get("raw_name", "")).strip()
+        )
+        names.append(marker)
+
+    return indices, labels, names
 
 
 def subset_images(
@@ -112,23 +211,27 @@ def subset_images(
             skipped += 1
             continue
 
-        selected_indices = []
-        selected_labels = []
-        selected_names = []
-        for channel in panel_channels:
-            try:
-                channel_number = int(channel.get("channel_number", ""))
-            except (TypeError, ValueError):
-                continue
-            index = channel_number
-            if 0 <= index < image.shape[0] and index not in selected_indices:
-                selected_indices.append(index)
-                selected_labels.append(
-                    str(channel.get("metal_isotope", "")).strip()
-                )
-                selected_names.append(
-                    str(channel.get("biological_marker", "")).strip()
-                )
+        source_numbers = _read_source_channel_numbers(
+            project_dir,
+            panel_file,
+        )
+        if source_numbers:
+            selected_indices = []
+            selected_labels = []
+            selected_names = []
+            for channel, index in zip(panel_channels, source_numbers):
+                if 0 <= index < image.shape[0] and index not in selected_indices:
+                    selected_indices.append(index)
+                    selected_labels.append(
+                        str(channel.get("metal_isotope", "")).strip()
+                    )
+                    selected_names.append(
+                        str(channel.get("biological_marker", "")).strip()
+                    )
+        else:
+            selected_indices, selected_labels, selected_names = (
+                _sorted_channel_indices(tiff_path, panel_channels)
+            )
 
         if not selected_indices:
             skipped += 1

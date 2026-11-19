@@ -59,6 +59,7 @@ def extract(
         project_dir=project_dir,
         config=config,
     )
+    selected_images_dir.mkdir(parents=True, exist_ok=True)
     selected_clinical_dir = get_selected_clinical_dir(
         project_dir=project_dir,
         config=config,

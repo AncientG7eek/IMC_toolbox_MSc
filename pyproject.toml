@@ -12,6 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "typer>=0.16",
     "openpyxl>=3.1",
+    "PyYAML>=6.0",
 ]
 
 
