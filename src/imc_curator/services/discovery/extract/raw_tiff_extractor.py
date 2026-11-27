@@ -216,6 +216,8 @@ def extract_raw_tiffs(
                                     for index in selected_indices
                                 ],
                             },
+                            photometric="minisblack",
+                            planarconfig="separate",
                         )
                         tiff_count += 1
 

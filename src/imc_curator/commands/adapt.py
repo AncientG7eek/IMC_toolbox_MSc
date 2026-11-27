@@ -13,11 +13,11 @@ MODEL_CONFIGS: dict[str, ModelConfig] = {
 def adapt(
     model: str = typer.Argument(
         ...,
-        help="Name of the ML model to adapt the global files for.",
+        help="Name of the ML model to adapt the curated database for.",
         autocompletion=complete_models,
     ),
 ) -> None:
-    """Generate model-specific config files from global marker tables."""
+    """Generate model-specific config files from curated marker tables."""
     model_key = model.strip().casefold()
     config_instance = MODEL_CONFIGS.get(model_key)
 

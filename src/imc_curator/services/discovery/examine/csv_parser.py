@@ -42,9 +42,17 @@ def markers_csv_parser(
     markers_file_path: Path,
     review_csv_path: Path,
     project_dir: Path,
+    marker_table: pd.DataFrame | None = None,
 ) -> str:
     """Create an editable marker review CSV and its TOML instructions."""
-    marker_table = pd.read_csv(markers_file_path)
+    if marker_table is None:
+        if markers_file_path.suffix.lower() == ".xlsx":
+            marker_table = pd.read_excel(
+                markers_file_path,
+                engine="openpyxl",
+            )
+        else:
+            marker_table = pd.read_csv(markers_file_path)
 
     marker_table[REVIEW_COLUMN] = 1
 
@@ -361,7 +369,7 @@ def examine_marker_and_clinical_tables(
                 path
                 for path in markers_path.rglob("*")
                 if path.is_file()
-                and path.suffix.lower() == ".csv"
+                and path.suffix.lower() in {".csv", ".xlsx"}
             ),
             key=lambda path: str(path).lower(),
         )
@@ -410,9 +418,16 @@ def examine_marker_and_clinical_tables(
 
         for markers_file in marker_files:
             stem = markers_file.stem
+            if markers_file.suffix.lower() == ".xlsx":
+                panel_table = pd.read_excel(
+                    markers_file,
+                    engine="openpyxl",
+                )
+            else:
+                panel_table = pd.read_csv(markers_file)
             _, form_path = create_panel_review(
                 panel_id=stem,
-                panel_table=pd.read_csv(markers_file),
+                panel_table=panel_table,
                 source_path=path_for_form(markers_file, project_dir),
                 markers_output_dir=markers_output_dir,
                 project_dir=project_dir,

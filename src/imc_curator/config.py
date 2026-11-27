@@ -1,26 +1,54 @@
+import os
 from pathlib import Path
 import tomllib
+import warnings
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PACKAGE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = PACKAGE_DIR.parents[1]
+PACKAGED_CONFIG_DIR = PACKAGE_DIR / "_defaults" / "configs"
 
-CONFIG_FILE = (
-    PROJECT_ROOT
-    / "configs"
-    / "imc_curator_config.toml"
-)
+CURATED_DATABASE_DIR_KEY = "curated_database_dir"
+LEGACY_DATABASE_DIR_KEY = "global_files_dir"
 
-SEARCH_CONFIG_FILE = (
-    PROJECT_ROOT
-    / "configs"
-    / "imc_curator_search_config.toml"
-)
+_WARNED: set[str] = set()
 
-OME_PARSER_CONFIG_FILE = (
-    PROJECT_ROOT
-    / "configs"
-    / "imc_curator_ome_parser_config.toml"
-)
+
+def _warn_once(key: str, message: str) -> None:
+    """Emit a deprecation warning a single time per process."""
+    if key in _WARNED:
+        return
+    _WARNED.add(key)
+    warnings.warn(message, DeprecationWarning, stacklevel=3)
+
+
+def _config_dir() -> Path:
+    """Return the directory containing the active configuration files.
+
+    Resolution order:
+
+    1. ``IMC_CURATOR_CONFIG_DIR`` environment variable.
+    2. The repository ``configs/`` directory (source/editable installs).
+    3. The portable defaults shipped inside the installed package.
+    """
+    override = os.environ.get("IMC_CURATOR_CONFIG_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+
+    repository_configs = PROJECT_ROOT / "configs"
+    if (repository_configs / "imc_curator_config.toml").is_file():
+        return repository_configs
+
+    return PACKAGED_CONFIG_DIR
+
+
+CONFIG_DIR = _config_dir()
+
+CONFIG_FILE = CONFIG_DIR / "imc_curator_config.toml"
+
+SEARCH_CONFIG_FILE = CONFIG_DIR / "imc_curator_search_config.toml"
+
+OME_PARSER_CONFIG_FILE = CONFIG_DIR / "imc_curator_ome_parser_config.toml"
 
 
 
@@ -33,7 +61,84 @@ def load_config() -> dict:
         )
 
     with CONFIG_FILE.open("rb") as f:
-        return tomllib.load(f)
+        config = tomllib.load(f)
+
+    config = _apply_env_overrides(config)
+    return _normalise_curation_config(config)
+
+
+def _apply_env_overrides(config: dict) -> dict:
+    """Allow tests and deployments to redirect hard-coded paths.
+
+    Environment variables take precedence over the values in
+    ``imc_curator_config.toml``. This keeps the config file as the
+    single source of truth for normal use while letting automated
+    tests run against temporary directories.
+    """
+    projects_dir = os.environ.get("IMC_CURATOR_PROJECTS_DIR")
+    if projects_dir:
+        config["projects_dir"] = projects_dir
+
+    curated_database_dir = os.environ.get(
+        "IMC_CURATOR_CURATED_DATABASE_DIR"
+    )
+    if not curated_database_dir:
+        curated_database_dir = os.environ.get(
+            "IMC_CURATOR_GLOBAL_FILES_DIR"
+        )
+        if curated_database_dir:
+            _warn_once(
+                "env:IMC_CURATOR_GLOBAL_FILES_DIR",
+                "IMC_CURATOR_GLOBAL_FILES_DIR is deprecated; use "
+                "IMC_CURATOR_CURATED_DATABASE_DIR instead.",
+            )
+    if curated_database_dir:
+        config.setdefault("curation", {})[
+            CURATED_DATABASE_DIR_KEY
+        ] = curated_database_dir
+
+    workspace_dir = os.environ.get("IMC_CURATOR_WORKSPACE")
+    if workspace_dir:
+        config["workspace_dir"] = workspace_dir
+
+    return config
+
+
+def _normalise_curation_config(config: dict) -> dict:
+    """Map the legacy ``global_files_dir`` key to its new name."""
+    curation = config.setdefault("curation", {})
+
+    if (
+        CURATED_DATABASE_DIR_KEY not in curation
+        and LEGACY_DATABASE_DIR_KEY in curation
+    ):
+        curation[CURATED_DATABASE_DIR_KEY] = curation[
+            LEGACY_DATABASE_DIR_KEY
+        ]
+        _warn_once(
+            "config:global_files_dir",
+            "The [curation] global_files_dir setting is deprecated; "
+            "rename it to curated_database_dir.",
+        )
+
+    return config
+
+
+def get_workspace_dir(config: dict) -> Path:
+    """Return the directory against which relative paths are resolved.
+
+    The repository configuration keeps its historical behaviour and uses
+    the repository root. A pip-installed package defaults to the current
+    working directory, so running ``imc-curator`` in a folder keeps that
+    folder self-contained.
+    """
+    value = config.get("workspace_dir") or PROJECT_ROOT
+    workspace = Path(str(value)).expanduser()
+
+    if not workspace.is_absolute():
+        workspace = Path.cwd() / workspace
+
+    return workspace.resolve()
 
 
 def load_search_config() -> dict:
@@ -66,39 +171,104 @@ def load_ome_parser_config() -> dict:
         return tomllib.load(f)
 
 
-def get_global_files_dir(config: dict) -> Path:
-    """Return the configured global files directory."""
-    base = Path(config["curation"]["global_files_dir"])
+def get_curated_database_dir(config: dict) -> Path:
+    """Return the configured curated database directory.
+
+    New configurations use ``[curation] curated_database_dir``. The
+    legacy ``global_files_dir`` key and a legacy sibling ``global_files``
+    folder are still accepted so existing workspaces keep working.
+    """
+    curation = config.get("curation", {})
+    configured = curation.get(CURATED_DATABASE_DIR_KEY)
+
+    if configured is None:
+        configured = curation.get(LEGACY_DATABASE_DIR_KEY)
+
+    if configured is None:
+        raise RuntimeError(
+            "Missing 'curated_database_dir' in the [curation] section "
+            f"of {CONFIG_FILE}"
+        )
+
+    base = Path(str(configured)).expanduser()
     if not base.is_absolute():
-        base = PROJECT_ROOT / base
+        base = get_workspace_dir(config) / base
+
+    if not base.exists() and base.name == "curated_database":
+        legacy = base.parent / "global_files"
+        if legacy.is_dir():
+            _warn_once(
+                "folder:global_files",
+                "Using the legacy 'global_files' folder because "
+                "'curated_database' does not exist yet. Rename the "
+                "folder when convenient.",
+            )
+            return legacy
+
     return base
 
 
+def get_curated_file_path(config: dict, key: str) -> Path:
+    """Return the full path to a configured curated database file."""
+    return get_curated_database_dir(config) / config["curation"][key]
+
+
+def get_curated_subdir(config: dict, key: str) -> Path:
+    """Return the full path to a curated database subdirectory."""
+    return get_curated_database_dir(config) / config["curation"][key]
+
+
+def get_global_files_dir(config: dict) -> Path:
+    """Deprecated alias for :func:`get_curated_database_dir`."""
+    _warn_once(
+        "function:get_global_files_dir",
+        "get_global_files_dir() is deprecated; use "
+        "get_curated_database_dir().",
+    )
+    return get_curated_database_dir(config)
+
+
 def get_global_file_path(config: dict, key: str) -> Path:
-    """Return the full path to a configured global file."""
-    return get_global_files_dir(config) / config["curation"][key]
+    """Deprecated alias for :func:`get_curated_file_path`."""
+    _warn_once(
+        "function:get_global_file_path",
+        "get_global_file_path() is deprecated; use "
+        "get_curated_file_path().",
+    )
+    return get_curated_file_path(config, key)
 
 
 def get_global_subdir(config: dict, key: str) -> Path:
-    """Return the full path to a configured global subdirectory."""
-    return get_global_files_dir(config) / config["curation"][key]
+    """Deprecated alias for :func:`get_curated_subdir`."""
+    _warn_once(
+        "function:get_global_subdir",
+        "get_global_subdir() is deprecated; use get_curated_subdir().",
+    )
+    return get_curated_subdir(config, key)
 
 
-def get_projects_dir() -> Path:
-    """Return the configured directory for cohort projects."""
-
-    config = load_config()
-
+def resolve_projects_dir(config: dict) -> Path:
+    """Resolve the projects directory from an in-memory configuration."""
     try:
-        projects_dir = Path(config["projects_dir"])
+        projects_dir = Path(
+            str(config["projects_dir"])
+        ).expanduser()
     except KeyError:
         raise RuntimeError(
             f"'projects_dir' is missing from {CONFIG_FILE}"
         )
 
     if not projects_dir.is_absolute():
-        projects_dir = PROJECT_ROOT / projects_dir
+        projects_dir = get_workspace_dir(config) / projects_dir
 
+    return projects_dir
+
+
+def get_projects_dir() -> Path:
+    """Return the configured directory for cohort projects."""
+
+    config = load_config()
+    projects_dir = resolve_projects_dir(config)
     projects_dir.mkdir(parents=True, exist_ok=True)
 
     return projects_dir

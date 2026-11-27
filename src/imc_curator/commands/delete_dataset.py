@@ -5,8 +5,8 @@ import pandas as pd
 import typer
 
 from imc_curator.config import (
-    get_global_file_path,
-    get_global_subdir,
+    get_curated_file_path,
+    get_curated_subdir,
     get_projects_dir,
     load_config,
 )
@@ -16,11 +16,11 @@ from imc_curator.completion import complete_datasets
 def delete_dataset(
     name: str = typer.Argument(
         ...,
-        help="Project name to delete from data and global files.",
+        help="Project name to delete from data and the curated database.",
         autocompletion=complete_datasets,
     ),
 ) -> None:
-    """Delete a project directory and its global-file references."""
+    """Delete a project directory and its curated-database references."""
     project_dir = get_projects_dir() / name
     if not project_dir.is_dir():
         raise typer.BadParameter(
@@ -28,7 +28,7 @@ def delete_dataset(
         )
 
     confirmed = typer.confirm(
-        f"Delete project '{name}' and remove it from global files?",
+        f"Delete project '{name}' and remove it from the curated database?",
         default=False,
     )
     if not confirmed:
@@ -36,27 +36,27 @@ def delete_dataset(
         raise typer.Exit(code=1)
 
     config = load_config()
-    register_path = get_global_file_path(
+    register_path = get_curated_file_path(
         config,
         "global_image_register_file",
     )
-    image_clinical_path = get_global_file_path(
+    image_clinical_path = get_curated_file_path(
         config,
         "global_image_clinical_file",
     )
-    clinical_values_path = get_global_file_path(
+    clinical_values_path = get_curated_file_path(
         config,
         "global_clinical_values_file",
     )
-    marker_channels_path = get_global_file_path(
+    marker_channels_path = get_curated_file_path(
         config,
         "global_marker_channels_file",
     )
-    all_images_dir = get_global_subdir(
+    all_images_dir = get_curated_subdir(
         config,
         "global_images_subdir",
     )
-    split_dir = get_global_subdir(
+    split_dir = get_curated_subdir(
         config,
         "global_split_subdir",
     )
@@ -149,4 +149,6 @@ def delete_dataset(
             if path.is_symlink() and path.name in removed_global_names:
                 path.unlink()
 
-    typer.echo(f"Deleted project '{name}' and its global references.")
+    typer.echo(
+        f"Deleted project '{name}' and its curated-database references."
+    )

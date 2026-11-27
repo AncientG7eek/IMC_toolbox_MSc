@@ -12,7 +12,7 @@ def finalize(
     ),
 ) -> None:
     """Finalizes the curation process of the dataset. 
-    The global clinical and marker metadata tables 
+    The curated clinical and marker metadata tables
     on the cohort and panel levels get appended with 
     information from this curation project."""
 

@@ -1,18 +1,50 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 
 [project]
 name = "imc-curator"
 version = "0.1.0"
-description = "Tools for curating imaging mass cytometry datasets"
-requires-python = ">=3.10"
+description = "Curate Imaging Mass Cytometry (IMC) datasets into standardized, analysis-ready projects."
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = [
+    "imaging mass cytometry",
+    "IMC",
+    "spatial omics",
+    "bioinformatics",
+    "data curation",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
 
 dependencies = [
     "typer>=0.16",
-    "openpyxl>=3.1",
+    "rich>=13.0",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "tifffile>=2024.1.1",
+    "scikit-image>=0.22",
+    "readimc>=0.9",
+    "imageio>=2.31",
+    "tomli_w>=1.0",
     "PyYAML>=6.0",
+    "openpyxl>=3.1",
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.2",
+    "twine>=5.0",
 ]
 
 
@@ -22,3 +54,12 @@ imc-curator = "imc_curator.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/imc_curator"]
+
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/imc_curator",
+    "tests",
+    "README.md",
+    "pyproject.toml",
+]

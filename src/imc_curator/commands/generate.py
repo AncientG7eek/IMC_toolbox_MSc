@@ -5,7 +5,7 @@ import pandas as pd
 import typer
 import yaml
 
-from imc_curator.config import get_global_file_path, load_config
+from imc_curator.config import get_curated_file_path, load_config
 
 
 def _filter_values(value: object) -> list[str]:
@@ -38,7 +38,7 @@ def _load_filter_file(path: Path) -> dict[str, list[str]]:
     }
 
 
-def generate_experiment(
+def generate(
     config_file: Path = typer.Option(
         None,
         "--config",
@@ -66,9 +66,9 @@ def generate_experiment(
         help="Output CSV path for the filtered experiment.",
     ),
 ) -> None:
-    """Filter global image-clinical data into an experiment CSV."""
+    """Filter curated image-clinical data into an experiment CSV."""
     config = load_config()
-    path = get_global_file_path(
+    path = get_curated_file_path(
         config,
         "global_image_clinical_file",
     )

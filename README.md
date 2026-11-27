@@ -1,170 +1,194 @@
-# IMC_toolbox_MSc
-A Computational Toolbox for Large-Scale IMC Data and Feature Analysis + finetuning of the Immuvis model
-
-
 # IMC Curator
 
-A toolkit for discovering, validating, and curating Imaging Mass Cytometry
-(IMC) datasets into a standardized project structure.
+A Python package for turning raw Imaging Mass Cytometry (IMC) datasets into
+standardized, analysis-ready projects.
 
-## Overview
-
-`imc-curator` helps organize the process of turning a raw IMC dataset into
-a structured dataset ready for downstream analysis.
-
-The workflow is:
-
-    Raw dataset
-        ↓
-    Initialize project
-        ↓
-    Inspect dataset
-        ↓
-    Review manifest
-        ↓
-    Validate inputs
-        ↓
-    Curate
-        ↓
-    Standardized dataset
+`imc-curator` covers the full curation workflow: importing a dataset,
+inspecting it, generating review forms, extracting selected images and
+tables, curating marker/clinical mappings, and finalizing shared global
+reference files.
 
 ## Installation
 
-Clone the repository:
+From PyPI (once published):
 
-    git clone <repository-url>
-    cd IMC_toolbox_MSc
+```bash
+pip install imc-curator
+```
 
-Create an environment:
+From a source checkout:
 
-    python -m venv .venv
-    source .venv/bin/activate
+```bash
+git clone <repository-url>
+cd IMC_toolbox_MSc
+pip install .
+```
 
-Install the package in editable mode:
+For development, install in editable mode:
 
-    pip install -e .
+```bash
+pip install -e ".[dev]"
+```
 
-Check the CLI:
+Check the installation:
 
-    imc-curator --help
+```bash
+imc-curator --version
+imc-curator --help
+```
+
+Python 3.11 or newer is required.
 
 ## Configuration
 
-The location of cohort projects is defined in:
+`imc-curator` reads three TOML files:
 
-    configs/config.toml
+- `imc_curator_config.toml` — workspace, project, and curated-database paths
+- `imc_curator_search_config.toml` — file discovery and classification rules
+- `imc_curator_ome_parser_config.toml` — channel-name parsing rules
 
-For example:
+Configuration is resolved in this order:
 
-    projects_dir = "cohorts/"
+1. `IMC_CURATOR_CONFIG_DIR` environment variable.
+2. The repository `configs/` directory (source/editable installs).
+3. Portable defaults shipped inside the package.
 
-Relative paths are resolved relative to the repository root.
+The installed defaults use a self-contained workspace: running
+`imc-curator` creates `./projects` and `./curated_database` in the current
+directory. Relative paths are resolved against `workspace_dir` in the main
+config (default `.`).
 
-## Basic usage
+Individual paths can be redirected without editing the config:
 
-### 1. Initialize a project
+```bash
+export IMC_CURATOR_WORKSPACE=/data/imc
+export IMC_CURATOR_PROJECTS_DIR=/data/imc/projects
+export IMC_CURATOR_CURATED_DATABASE_DIR=/data/imc/curated_database
+```
 
-    imc-curator init \
-        --url https://example.com/dataset.zip \
-        --name IMMUcan
+Existing workspaces that still use `global_files/`, the
+`global_files_dir` config key, or `IMC_CURATOR_GLOBAL_FILES_DIR` keep
+working through deprecated aliases. New configurations should use the
+`curated_database` names.
 
-This creates:
+If you rename an existing folder, update stored `global_path` values in
+`global_register_of_images.csv` and `global_image_clinical.csv` from
+`.../global_files/...` to `.../curated_database/...`.
 
-    cohorts/
-    └── IMMUcan/
-        ├── data/
-        │   └── raw/
-        ├── metadata/
-        └── output/
+## Workflow
 
-and downloads the dataset archive into `data/raw/`.
+```bash
+imc-curator init --source <url-or-path> --name <project>
+imc-curator inspect <project>
+imc-curator populate <project>
+imc-curator examine <project>
+imc-curator extract <project>
+imc-curator curate <project>
+imc-curator finalize <project>
+imc-curator preprocess
+```
 
-### 2. Inspect the dataset
+After at least one project has been finalized, model-specific configuration
+can be generated:
 
-    imc-curator inspect IMMUcan
+```bash
+imc-curator adapt immuvis
+imc-curator generate \
+    --cohort my_cohort \
+    --feature Indication \
+    --value CRC \
+    --output experiment.csv
+```
 
-The inspection step searches the downloaded dataset and suggests:
+### Preprocessing the curated image database
 
-- image files
-- marker metadata
-- clinical information
-- sample metadata
-- unclassified files
+Preprocessing is configured once for the whole curated image database:
 
-It creates:
+```text
+<curated_database>/preprocessing.toml
+```
 
-    cohorts/IMMUcan/manifest.toml
+The first `preprocess` run creates this file with ImmuVis defaults. The
+global `[preprocessing]` and `[denoising]` settings apply to every panel.
+Optional `[datasets.<panel>]` tables override individual fields for one
+panel while inheriting everything else.
 
-### 3. Review the manifest
+```toml
+[preprocessing]
+method = "arcsinh"          # arcsinh | log1p | none
+arcsinh_scale = 5.0
 
-Open:
+[denoising]
+method = "butterworth"      # butterworth | median | gaussian | none
+butterworth_cutoff = 0.2
+butterworth_high_pass = false
 
-    cohorts/IMMUcan/manifest.toml
+[output]
+directory = "preprocessed"
+register_file = "global_register_of_preprocessed_images.csv"
+compression = "zlib"        # zlib | lzw | deflate | none
+```
 
-and check or modify the suggested paths.
+Run it with:
 
-The manifest is the authoritative description of the input data used
-for curation.
+```bash
+imc-curator preprocess
+imc-curator preprocess --dataset panelA --dataset panelB
+imc-curator preprocess --force
+imc-curator preprocess --config path/to/preprocessing.toml
+```
 
-### 4. Validate
+The command writes float32 `CYX` TIFFs to
+`<curated_database>/preprocessed/`, plus
+`global_register_of_preprocessed_images.csv` with source paths, panel
+names, preprocessing signatures, and per-image status. A
+`preprocess_report.toml` records the configuration and run counts.
+Existing outputs are skipped unless `--force` is passed.
 
-    imc-curator validate IMMUcan
+ImmuVis applies its own preprocessing by default. If you train on these
+preprocessed images, set `preprocessing_func: null` and
+`denoising_func: null` in the training config to avoid applying the
+pipeline twice.
 
-Validation checks that the files specified in the manifest exist and
-contain the expected information.
+### ImmuVis preprocessing and clip limits
 
-### 5. Curate
+`imc-curator adapt immuvis` reads the same `preprocessing.toml` (or uses
+ImmuVis defaults if it does not exist), applies that pipeline to the
+curated images referenced by `global_register_of_images.csv`, and
+estimates clip limits:
 
-    imc-curator curate IMMUcan
+```text
+arcsinh(x / 5) -> Butterworth low-pass filter (cutoff 0.2)
+```
 
-This runs the dataset-specific curation pipeline.
+It then estimates each panel's clip limit as the 99th percentile of the
+preprocessed pixels and writes those values into `clip_limits` in
+`all_panels_config.yaml`. To keep adaptation fast, at most 8 images per
+panel and 50,000 pixels per image are sampled, with a 2,000,000-pixel
+cap per panel. Panels with no curated images fall back to 5.0.
 
-## Project structure
+The reusable preprocessing and statistics functions live in
+`imc_curator.services.processing`. `marker_stats` is still emitted as a
+configured filename; per-marker z-score statistics are not computed yet.
 
-A curated project has the following structure:
+To remove a project and its data folder:
 
-    cohorts/
-    └── IMMUcan/
-        ├── data/
-        │   ├── raw/
-        │   └── processed/
-        ├── metadata/
-        ├── output/
-        └── manifest.toml
+```bash
+imc-curator delete-dataset <project>
+```
 
-## CLI commands
+Run `imc-curator <command> --help` for command-specific options.
 
-    imc-curator init
-    imc-curator inspect
-    imc-curator validate
-    imc-curator curate
+## Development and tests
 
-Run:
+```bash
+pip install -e .
+PYTHONPATH=src python -m unittest discover -s tests -v
+```
 
-    imc-curator <command> --help
-
-for command-specific documentation.
-
-## Development
-
-Install the package in editable mode:
-
-    pip install -e .
-
-Run tests:
-
-    pytest
-
-Source code is located in:
-
-    src/imc_curator/
-
-# IMC statistics
-tbd
-
-# IMMUVIS model finetuning
-tbd
+The test suite uses small fixtures for MCD, both OME-TIFF layouts, and
+CSV/XLSX marker and clinical tables.
 
 ## License
 
-...
+License to be chosen by the author before publishing to PyPI.

@@ -254,6 +254,8 @@ def subset_images(
                 "channel_labels": selected_labels,
                 "channel_names": selected_names,
             },
+            photometric="minisblack",
+            planarconfig="separate",
         )
         rewritten += 1
 

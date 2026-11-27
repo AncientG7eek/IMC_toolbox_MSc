@@ -21,7 +21,9 @@ examine = [
 
 [curation]
 curation_manifests_subdir = "curation_manifests"
-global_files_dir = "/raid_encrypted/immucan/kacpie/global_files"
+# Existing workspaces that still have a sibling `global_files/` folder
+# are detected automatically; rename it when convenient.
+curated_database_dir = "/raid_encrypted/immucan/kacpie/curated_database"
 global_marker_names_file = "global_marker_names.csv"
 global_marker_channels_file = "global_marker_channels.csv"
 global_clinical_values_file = "global_clinical_values.csv"
@@ -30,6 +32,7 @@ global_image_register_file = "global_register_of_images.csv"
 global_images_subdir = "all_images"
 global_split_subdir = "split"
 relative_images_dir = "data/raw/selected"
+preprocessing_config_file = "preprocessing.toml"
 
 [logging]
 logs_subdir = "logs"

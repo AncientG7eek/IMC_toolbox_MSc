@@ -1,0 +1,38 @@
+[archives]
+extensions = [".zip"]
+
+
+[categories.images]
+extensions = [".tif", ".tiff"]
+strong_positive_keywords = ["full", "stack"]
+weak_positive_keywords = ["ROI"]
+negative_keywords = ["mask", "exclucion", ".pdf", ".csv"]
+destination = "data/raw/unpacked"
+
+[categories.marker_metadata]
+extensions = [".csv", ".tsv", ".xls", ".xlsx"]
+strong_positive_keywords = ["marker", "panel", "channel"]
+weak_positive_keywords = []
+negative_keywords = ["clinical", "patient", "donor"]
+destination = "metadata/markers/unpacked"
+
+[categories.clinical_data]
+extensions = [".csv", ".docx", ".pdf", ".xls", ".xlsx"]
+strong_positive_keywords = ["clinical", "patient", "donor"]
+weak_positive_keywords = ["cli"]
+negative_keywords = ["marker", "channel", "antibody"]
+destination = "metadata/clinical/unpacked"
+
+[categories.raw_imc_data]
+extensions = [".mcd", ".txt"]
+strong_positive_keywords = ["TMA", ".mcd"]
+weak_positive_keywords = []
+negative_keywords = []
+destination = "metadata/raw_imc_data"
+
+
+[limits]
+max_nested_zip_depth = 5
+max_nested_archive_size = 10 #GB
+max_total_uncompressed_size = 100 #GB
+max_archive_members = 100_000

@@ -5,7 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from imc_curator.config import get_global_file_path, load_config
+from imc_curator.config import get_curated_file_path, load_config
 
 
 MARKER_NAME_COLUMNS = ["Marker Name", "Comment", "Aliases"]
@@ -83,7 +83,7 @@ def _split_aliases(value: str) -> list[str]:
 def load_marker_mapping() -> dict[str, Any]:
     """Load marker names, aliases, and panel-specific original names."""
     config = load_config()
-    path = get_global_file_path(
+    path = get_curated_file_path(
         config,
         "global_marker_names_file",
     )
@@ -139,7 +139,7 @@ def load_marker_mapping() -> dict[str, Any]:
 def load_clinical_mapping() -> dict[str, Any]:
     """Load original-to-standardized clinical feature/value mappings."""
     config = load_config()
-    path = get_global_file_path(
+    path = get_curated_file_path(
         config,
         "global_clinical_values_file",
     )

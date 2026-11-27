@@ -3,5 +3,15 @@ test1/
 test2/
 visualize/images
 configs/global_files/
+configs/curated_database/*
+!configs/curated_database/global_clinical_values.csv
+!configs/curated_database/global_marker_channels.csv
+!configs/curated_database/global_marker_names.csv
 __pycache__/
 *.pyc
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
